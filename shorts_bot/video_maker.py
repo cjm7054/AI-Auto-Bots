@@ -2,7 +2,8 @@ import asyncio
 import edge_tts
 import os
 from moviepy.editor import ColorClip, TextClip, AudioFileClip, CompositeVideoClip, concatenate_videoclips
-
+from moviepy.config import change_settings
+change_settings({"IMAGEMAGICK_BINARY": "/usr/bin/convert"})
 async def generate_tts(text, output_file="voice.mp3"):
     """edge-tts를 사용하여 한국어 여성 음성(SunHi)으로 텍스트를 음성 파일로 변환"""
     voice = "ko-KR-SunHiNeural"
