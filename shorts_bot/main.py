@@ -1,39 +1,90 @@
 import os
 import json
+import time
 from google import genai
 from dotenv import load_dotenv
 
+# 내부 모듈 임포트
+from trend_analyzer import get_daily_trends
+from video_maker import create_video
+from youtube_uploader import get_authenticated_service, upload_video
+
 load_dotenv()
 
-# Gemini 클라이언트 초기화 (Claude 전환 시 anthropic 라이브러리 사용)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 def generate_shorts_script(topic):
+    """
+    세인투의 [3초 후킹 - 공감 - 해결 - CTA] 공식에 맞춘 쇼츠 대본 생성.
+    영상 합성을 위해 결과물을 JSON 형태로 반환받도록 강제합니다.
+    """
     prompt = f"""
-    당신은 100만 유튜버를 기획하는 숏폼/릴스 전문 대본 기획자입니다.
-    주제: {topic}
+    당신은 수백만 조회수를 찍는 유튜브 쇼츠/인스타 릴스 대본 기획자입니다.
+    오늘의 핫이슈 주제: {topic}
     
-    [CoT 지시사항: 아래 단계에 따라 차근차근 생각하고 결과를 작성하세요]
-    1. 이 주제에 대해 사람들이 흔히 겪는 '결핍'이나 '오해' 3가지를 구상하세요.
-    2. 그 중 가장 자극적이고 공감되는 포인트를 골라 '초반 3초 후킹 문구'를 작성하세요.
-    3. 전체 대본을 [후킹] -> [공감대 형성] -> [명확한 해결책] -> [CTA(행동유도)] 구조로 1분 이내 분량(약 400자)으로 작성하세요.
+    [작성 공식]
+    1. 3초 후킹: 이탈을 막기 위해 무조건 자극적이고 궁금하게 시작 (질문형 등)
+    2. 공감: 타겟 시청자의 문제점이나 현실을 짚어줌
+    3. 해결: 구체적이고 빠른 해결책 1~2개 제시
+    4. CTA(행동유도): "구독하고 더 많은 정보 받기" 형태의 마무리
     
     [출력 형식]
-    === 기획 의도 ===
-    (1, 2번 과정 요약)
-    
-    === 완성된 대본 ===
-    (3번 결과물)
+    다음과 같은 JSON 형식으로만 출력하세요. 마크다운 기호(```json 등)는 절대 넣지 마세요.
+    {{
+        "title": "유튜브에 올라갈 어그로성 제목",
+        "tags": ["#쇼츠", "#트렌드", "#키워드"],
+        "captions": [
+            "후킹 텍스트 1줄",
+            "공감 텍스트 1줄",
+            "해결 텍스트 1줄",
+            "해결 텍스트 2줄",
+            "CTA 텍스트 1줄"
+        ]
+    }}
     """
     
     response = client.models.generate_content(
         model='gemini-2.5-flash',
         contents=prompt,
     )
-    return response.text
+    
+    # JSON 파싱
+    raw_text = response.text.replace('```json', '').replace('```', '').strip()
+    try:
+        return json.loads(raw_text)
+    except Exception as e:
+        print(f"[오류] 대본 생성 실패: {e}")
+        return None
 
 if __name__ == "__main__":
-    test_topic = "직장인 부업으로 전자책 쓰는 법"
-    print(f"[{test_topic}] 숏폼 대본 생성 중...\n")
-    script = generate_shorts_script(test_topic)
-    print(script)
+    print("=== [100% 무인 쇼츠 자동화 파이프라인 시작] ===")
+    
+    # 1. 트렌드 분석
+    print("\n[1/4] 실시간 트렌드 분석 중...")
+    trends = get_daily_trends()
+    target_topic = trends[0]
+    print(f"-> 선정된 주제: {target_topic}")
+    
+    # 2. 대본 기획
+    print("\n[2/4] AI 쇼츠 대본 기획 중...")
+    script = generate_shorts_script(target_topic)
+    if not script:
+        exit(1)
+        
+    print(f"-> 제목: {script['title']}")
+    
+    # 3. 영상 합성 (TTS + 자막 + 배경)
+    print("\n[3/4] 음성(TTS) 및 영상 렌더링 시작...")
+    output_filename = f"shorts_{int(time.time())}.mp4"
+    create_video(script, output_filename)
+    
+    # 4. 유튜브 자동 업로드
+    print("\n[4/4] YouTube 자동 업로드 시작...")
+    youtube = get_authenticated_service()
+    if youtube:
+        upload_video(youtube, output_filename, script['title'], "AI가 자동으로 생성한 쇼츠 영상입니다.", script['tags'])
+    else:
+        print("-> 유튜브 API 인증이 완료되지 않아 업로드를 건너뜁니다.")
+        
+    print("\n=== [모든 파이프라인 종료] ===")
+

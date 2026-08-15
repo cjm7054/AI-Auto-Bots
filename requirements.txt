@@ -1,4 +1,9 @@
-google-genai==0.3.0
-anthropic==0.42.0
-python-dotenv==1.0.1
-requests==2.32.3
+google-generativeai
+python-dotenv
+anthropic
+pytrends
+edge-tts
+moviepy==1.0.3
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
