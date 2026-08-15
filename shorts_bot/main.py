@@ -13,7 +13,7 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # SDK 대신 REST API 직접 호출 (v1 엔드포인트 - 가장 안정적)
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
 def call_gemini(prompt):
     """Gemini REST API를 직접 호출하여 텍스트를 생성합니다."""
