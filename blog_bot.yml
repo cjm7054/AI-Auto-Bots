@@ -1,0 +1,29 @@
+name: Daily Blog Post Generator
+
+on:
+  schedule:
+    # 한국 시간 기준 오전 8시(UTC 23시), 낮 12시(UTC 3시), 오후 6시(UTC 9시)
+    - cron: '0 23,3,9 * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+        working-directory: ./AI_자동화_수익화_봇
+
+      - name: Run Blog Bot
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python blog_bot/main.py
+        working-directory: ./AI_자동화_수익화_봇
