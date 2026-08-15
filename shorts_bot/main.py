@@ -1,7 +1,7 @@
 import os
 import json
 import time
-import google.generativeai as genai
+import requests
 from dotenv import load_dotenv
 
 # 내부 모듈 임포트
@@ -11,8 +11,22 @@ from youtube_uploader import get_authenticated_service, upload_video
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-pro')
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# SDK 대신 REST API 직접 호출 (v1 엔드포인트 - 가장 안정적)
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+
+def call_gemini(prompt):
+    """Gemini REST API를 직접 호출하여 텍스트를 생성합니다."""
+    headers = {"Content-Type": "application/json"}
+    body = {
+        "contents": [
+            {"parts": [{"text": prompt}]}
+        ]
+    }
+    response = requests.post(GEMINI_API_URL, json=body, headers=headers, timeout=60)
+    response.raise_for_status()
+    result = response.json()
+    return result["candidates"][0]["content"]["parts"][0]["text"]
 
 def generate_shorts_script(topic):
     """
@@ -44,14 +58,15 @@ def generate_shorts_script(topic):
     }}
     """
     
-    response = model.generate_content(prompt)
+    raw_text = call_gemini(prompt)
     
     # JSON 파싱
-    raw_text = response.text.replace('```json', '').replace('```', '').strip()
+    raw_text = raw_text.replace('```json', '').replace('```', '').strip()
     try:
         return json.loads(raw_text)
     except Exception as e:
         print(f"[오류] 대본 생성 실패: {e}")
+        print(f"Raw text: {raw_text}")
         return None
 
 if __name__ == "__main__":
@@ -85,4 +100,3 @@ if __name__ == "__main__":
         print("-> 유튜브 API 인증이 완료되지 않아 업로드를 건너뜁니다.")
         
     print("\n=== [모든 파이프라인 종료] ===")
-

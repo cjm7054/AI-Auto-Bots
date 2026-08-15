@@ -1,4 +1,4 @@
-google-generativeai
+requests
 python-dotenv
 anthropic
 pytrends
