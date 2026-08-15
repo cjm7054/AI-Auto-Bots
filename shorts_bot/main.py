@@ -1,7 +1,7 @@
 import os
 import json
 import time
-from google import genai
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 # 내부 모듈 임포트
@@ -11,7 +11,8 @@ from youtube_uploader import get_authenticated_service, upload_video
 
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def generate_shorts_script(topic):
     """
@@ -43,10 +44,7 @@ def generate_shorts_script(topic):
     }}
     """
     
-    response = client.models.generate_content(
-        model='gemini-1.5-flash',
-        contents=prompt,
-    )
+    response = model.generate_content(prompt)
     
     # JSON 파싱
     raw_text = response.text.replace('```json', '').replace('```', '').strip()
