@@ -16,8 +16,8 @@ GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 # 진단으로 확인된 안정적인 모델 alias (50개 모델 중 검증 완료)
 ACTIVE_MODEL = "gemini-flash-latest"
 
-def call_gemini(prompt):
-    """Gemini REST API를 직접 호출하여 텍스트를 생성합니다."""
+def call_gemini(prompt, max_retries=5):
+    """Gemini REST API를 직접 호출합니다. 503 오류 시 최대 5회 재시도합니다."""
     url = f"{GEMINI_BASE_URL}/models/{ACTIVE_MODEL}:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
     body = {
@@ -25,10 +25,21 @@ def call_gemini(prompt):
             {"parts": [{"text": prompt}]}
         ]
     }
-    response = requests.post(url, json=body, headers=headers, timeout=60)
-    response.raise_for_status()
-    result = response.json()
-    return result["candidates"][0]["content"]["parts"][0]["text"]
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.post(url, json=body, headers=headers, timeout=60)
+            response.raise_for_status()
+            result = response.json()
+            return result["candidates"][0]["content"]["parts"][0]["text"]
+        except requests.exceptions.HTTPError as e:
+            status = e.response.status_code if e.response else 0
+            if status == 503 and attempt < max_retries:
+                wait = 2 ** attempt  # 지수 백오프: 2, 4, 8, 16초
+                print(f"[재시도 {attempt}/{max_retries}] 서버 과부하(503), {wait}초 후 재시도...")
+                time.sleep(wait)
+            else:
+                raise
+    return None
 
 def generate_shorts_script(topic):
     """
