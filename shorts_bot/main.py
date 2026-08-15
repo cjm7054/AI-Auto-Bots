@@ -13,37 +13,12 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+# 진단으로 확인된 안정적인 모델 alias (50개 모델 중 검증 완료)
+ACTIVE_MODEL = "gemini-flash-latest"
 
-def get_available_model():
-    """사용 가능한 Gemini 모델 목록을 확인하고 첫 번째 텍스트 모델을 반환합니다."""
-    url = f"{GEMINI_BASE_URL}/models?key={GEMINI_API_KEY}"
-    response = requests.get(url, timeout=30)
-    response.raise_for_status()
-    models = response.json().get("models", [])
-    print("[진단] 사용 가능한 모델 목록:")
-    for m in models:
-        name = m.get("name", "")
-        # generateContent를 지원하는 텍스트 모델만 필터링
-        supported = m.get("supportedGenerationMethods", [])
-        if "generateContent" in supported:
-            print(f"  ✅ {name}")
-    # generateContent 지원 모델 중 첫 번째 flash 모델 반환
-    for m in models:
-        name = m.get("name", "")
-        supported = m.get("supportedGenerationMethods", [])
-        if "generateContent" in supported and "flash" in name:
-            return name.replace("models/", "")
-    # flash가 없으면 첫 번째 generateContent 지원 모델 반환
-    for m in models:
-        name = m.get("name", "")
-        supported = m.get("supportedGenerationMethods", [])
-        if "generateContent" in supported:
-            return name.replace("models/", "")
-    return None
-
-def call_gemini(prompt, model_name):
+def call_gemini(prompt):
     """Gemini REST API를 직접 호출하여 텍스트를 생성합니다."""
-    url = f"{GEMINI_BASE_URL}/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+    url = f"{GEMINI_BASE_URL}/models/{ACTIVE_MODEL}:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
     body = {
         "contents": [
@@ -55,7 +30,7 @@ def call_gemini(prompt, model_name):
     result = response.json()
     return result["candidates"][0]["content"]["parts"][0]["text"]
 
-def generate_shorts_script(topic, model_name):
+def generate_shorts_script(topic):
     """
     세인투의 [3초 후킹 - 공감 - 해결 - CTA] 공식에 맞춘 쇼츠 대본 생성.
     영상 합성을 위해 결과물을 JSON 형태로 반환받도록 강제합니다.
@@ -85,7 +60,7 @@ def generate_shorts_script(topic, model_name):
     }}
     """
     
-    raw_text = call_gemini(prompt, model_name)
+    raw_text = call_gemini(prompt)
     
     # JSON 파싱
     raw_text = raw_text.replace('```json', '').replace('```', '').strip()
@@ -98,14 +73,7 @@ def generate_shorts_script(topic, model_name):
 
 if __name__ == "__main__":
     print("=== [100% 무인 쇼츠 자동화 파이프라인 시작] ===")
-
-    # 0. 사용 가능한 Gemini 모델 자동 탐색
-    print("\n[0/4] 사용 가능한 Gemini 모델 탐색 중...")
-    active_model = get_available_model()
-    if not active_model:
-        print("[치명적 오류] 사용 가능한 Gemini 모델이 없습니다. API 키를 확인해주세요.")
-        exit(1)
-    print(f"-> 선택된 모델: {active_model}")
+    print(f"사용 모델: {ACTIVE_MODEL}")
 
     # 1. 트렌드 분석
     print("\n[1/4] 실시간 트렌드 분석 중...")
@@ -115,11 +83,12 @@ if __name__ == "__main__":
     
     # 2. 대본 기획
     print("\n[2/4] AI 쇼츠 대본 기획 중...")
-    script = generate_shorts_script(target_topic, active_model)
+    script = generate_shorts_script(target_topic)
     if not script:
         exit(1)
         
     print(f"-> 제목: {script['title']}")
+    print(f"-> 자막 수: {len(script['captions'])}줄")
     
     # 3. 영상 합성 (TTS + 자막 + 배경)
     print("\n[3/4] 음성(TTS) 및 영상 렌더링 시작...")
