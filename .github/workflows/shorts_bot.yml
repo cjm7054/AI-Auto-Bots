@@ -24,3 +24,5 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python shorts_bot/main.py
+      - name: Install system dependencies
+        run: sudo apt-get install -y imagemagick ffmpeg
