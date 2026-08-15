@@ -13,33 +13,52 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-# 진단으로 확인된 안정적인 모델 alias (50개 모델 중 검증 완료)
-ACTIVE_MODEL = "gemini-flash-latest"
 
-def call_gemini(prompt, max_retries=5):
-    """Gemini REST API를 직접 호출합니다. 503 오류 시 최대 5회 재시도합니다."""
-    url = f"{GEMINI_BASE_URL}/models/{ACTIVE_MODEL}:generateContent?key={GEMINI_API_KEY}"
+# 진단에서 확인된 모델 목록 - 순서대로 시도, 성공한 것 사용
+MODELS_TO_TRY = [
+    "gemini-3.7-flash",
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-flash-latest",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-pro",
+]
+
+def call_gemini_with_model(prompt, model_name):
+    """특정 모델로 Gemini API를 호출합니다."""
+    url = f"{GEMINI_BASE_URL}/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
-    body = {
-        "contents": [
-            {"parts": [{"text": prompt}]}
-        ]
-    }
-    for attempt in range(1, max_retries + 1):
-        try:
-            response = requests.post(url, json=body, headers=headers, timeout=60)
-            response.raise_for_status()
-            result = response.json()
-            return result["candidates"][0]["content"]["parts"][0]["text"]
-        except requests.exceptions.HTTPError as e:
-            status = e.response.status_code if e.response else 0
-            if status == 503 and attempt < max_retries:
-                wait = 2 ** attempt  # 지수 백오프: 2, 4, 8, 16초
-                print(f"[재시도 {attempt}/{max_retries}] 서버 과부하(503), {wait}초 후 재시도...")
-                time.sleep(wait)
-            else:
-                raise
-    return None
+    body = {"contents": [{"parts": [{"text": prompt}]}]}
+    response = requests.post(url, json=body, headers=headers, timeout=60)
+    response.raise_for_status()
+    result = response.json()
+    return result["candidates"][0]["content"]["parts"][0]["text"]
+
+def call_gemini(prompt):
+    """사용 가능한 모델을 순서대로 시도하여 첫 번째 성공한 결과를 반환합니다."""
+    last_error = None
+    for model in MODELS_TO_TRY:
+        for attempt in range(1, 4):  # 각 모델당 최대 3회 재시도
+            try:
+                print(f"  [시도] 모델: {model} (시도 {attempt}/3)")
+                result = call_gemini_with_model(prompt, model)
+                print(f"  [성공] 모델 {model} 사용 완료!")
+                return result
+            except requests.exceptions.HTTPError as e:
+                status = e.response.status_code if e.response else 0
+                if status == 503 and attempt < 3:
+                    wait = 2 ** attempt
+                    print(f"  [503 재시도] {wait}초 대기...")
+                    time.sleep(wait)
+                else:
+                    print(f"  [실패] 모델 {model}: HTTP {status}, 다음 모델 시도...")
+                    last_error = e
+                    break
+            except Exception as e:
+                print(f"  [오류] 모델 {model}: {e}")
+                last_error = e
+                break
+    raise Exception(f"모든 모델 시도 실패. 마지막 오류: {last_error}")
 
 def generate_shorts_script(topic):
     """
@@ -78,13 +97,12 @@ def generate_shorts_script(topic):
     try:
         return json.loads(raw_text)
     except Exception as e:
-        print(f"[오류] 대본 생성 실패: {e}")
-        print(f"Raw text: {raw_text}")
+        print(f"[오류] 대본 JSON 파싱 실패: {e}")
+        print(f"Raw text: {raw_text[:300]}")
         return None
 
 if __name__ == "__main__":
     print("=== [100% 무인 쇼츠 자동화 파이프라인 시작] ===")
-    print(f"사용 모델: {ACTIVE_MODEL}")
 
     # 1. 트렌드 분석
     print("\n[1/4] 실시간 트렌드 분석 중...")
@@ -92,7 +110,7 @@ if __name__ == "__main__":
     target_topic = trends[0]
     print(f"-> 선정된 주제: {target_topic}")
     
-    # 2. 대본 기획
+    # 2. 대본 기획 (자동 모델 폴백 포함)
     print("\n[2/4] AI 쇼츠 대본 기획 중...")
     script = generate_shorts_script(target_topic)
     if not script:
