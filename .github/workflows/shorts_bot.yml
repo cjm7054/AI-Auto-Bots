@@ -23,4 +23,4 @@ jobs:
       - name: Run Shorts Bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python shorts_bot/check_models.py
+        run: python shorts_bot/main.py
