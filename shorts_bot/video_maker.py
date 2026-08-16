@@ -1,6 +1,8 @@
 import asyncio
 import edge_tts
 import os
+import io
+import requests
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
@@ -11,12 +13,11 @@ async def generate_tts(text, output_file="voice.mp3"):
     communicate = edge_tts.Communicate(text, voice, rate="+10%")
     await communicate.save(output_file)
 
-def make_text_frame(text, width=1080, height=1920):
+def make_text_frame(text, base_img, width=1080, height=1920):
     """
-    PIL(Pillow)로 검은 배경 + 흰색 한글 자막 이미지를 생성합니다.
-    ImageMagick 불필요, 어디서나 작동합니다.
+    미리 준비된 배경 이미지(base_img) 위에 흰색 한글 자막을 생성합니다.
     """
-    img = Image.new('RGB', (width, height), color=(10, 10, 10))
+    img = base_img.copy()
     draw = ImageDraw.Draw(img)
     
     # 한글 폰트 탐색 (없으면 기본 폰트 사용)
@@ -68,9 +69,21 @@ def make_text_frame(text, width=1080, height=1920):
 def create_video(script_data, output_video="output.mp4"):
     """
     JSON 대본을 받아서 각 문장별로 TTS를 생성하고,
-    PIL로 자막 이미지를 만들어 영상으로 합성합니다. (ImageMagick 불필요)
+    랜덤 배경화면 위에 자막 이미지를 만들어 영상으로 합성합니다.
     """
     print("비디오 합성 시작 (PIL 방식)...")
+    
+    # 1. 랜덤 배경 이미지 가져오기 (가독성을 위해 어둡게 처리)
+    width, height = 1080, 1920
+    try:
+        print("  배경 이미지 다운로드 중...")
+        response = requests.get(f"https://picsum.photos/{width}/{height}", timeout=10)
+        base_img = Image.open(io.BytesIO(response.content)).convert('RGB')
+        base_img = base_img.point(lambda p: p * 0.4) # 어둡게 처리 (밝기 40%)
+    except Exception as e:
+        print(f"  [경고] 배경 이미지 다운로드 실패, 단색 배경 사용: {e}")
+        base_img = Image.new('RGB', (width, height), color=(20, 20, 30))
+
     clips = []
     
     for idx, caption in enumerate(script_data['captions']):
@@ -83,8 +96,8 @@ def create_video(script_data, output_video="output.mp4"):
         audio_clip = AudioFileClip(audio_file)
         duration = audio_clip.duration + 0.5
         
-        # 3. PIL로 자막 이미지 프레임 생성
-        frame = make_text_frame(caption)
+        # 3. PIL로 자막 이미지 프레임 생성 (배경 이미지 전달)
+        frame = make_text_frame(caption, base_img)
         
         # 4. ImageClip + 오디오 합성
         img_clip = ImageClip(frame).set_duration(duration).set_audio(audio_clip)
