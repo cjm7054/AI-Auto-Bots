@@ -14,7 +14,7 @@ FONT_PATH = "NanumGothicBold.ttf"
 # 폰트가 없으면 안정적인 렌더링을 위해 즉시 다운로드 (GitHub Actions 및 Windows 동일 호환)
 if not os.path.exists(FONT_PATH):
     print("  [초기화] 텍스트 잘림 방지용 고해상도 나눔고딕 폰트 다운로드 중...")
-    urllib.request.urlretrieve("https://github.com/naver/nanumfont/raw/master/NanumFontSetup_TTF_GOTHIC/NanumGothicBold.ttf", FONT_PATH)
+    urllib.request.urlretrieve("https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Bold.ttf", FONT_PATH)
 
 
 async def generate_tts(text, output_file="voice.mp3"):
