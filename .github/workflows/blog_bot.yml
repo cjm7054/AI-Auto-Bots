@@ -21,11 +21,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Create Blogger Token File
+        run: |
+          echo '${{ secrets.BLOGGER_TOKEN_JSON }}' > blog_bot/blogger_token.json
+
       - name: Run Blog Bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           WP_URL: ${{ secrets.WP_URL }}
           WP_USERNAME: ${{ secrets.WP_USERNAME }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
-          BLOGGER_TOKEN: ${{ secrets.BLOGGER_TOKEN }}
         run: python blog_bot/main.py
