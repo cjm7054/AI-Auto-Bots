@@ -1,0 +1,30 @@
+# 환경변수 / 비밀키
+.env
+*.env
+
+# OAuth 토큰 및 클라이언트 시크릿 (절대 커밋 금지!)
+shorts_bot/youtube_token.json
+shorts_bot/client_secrets.json
+
+# 생성된 영상/오디오 임시파일
+*.mp4
+*.mp3
+*.wav
+temp_voice_*.mp3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -19,11 +19,15 @@ jobs:
 
       - name: Install system dependencies
         run: sudo apt-get install -y fonts-nanum ffmpeg
+        working-directory: ./AI_자동화_수익화_봇
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+        working-directory: ./AI_자동화_수익화_봇
 
       - name: Run Shorts Bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
         run: python shorts_bot/main.py
+        working-directory: ./AI_자동화_수익화_봇
