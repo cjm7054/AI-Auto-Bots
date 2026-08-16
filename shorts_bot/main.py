@@ -80,7 +80,7 @@ def generate_shorts_script(topic):
     {{
         "title": "유튜브에 올라갈 어그로성 제목",
         "tags": ["#쇼츠", "#트렌드", "#키워드"],
-        "keyword": "one single english keyword representing the topic (e.g., money, business, robot, love, food)",
+        "keywords": ["money", "robot", "office", "success", "future"],
         "captions": [
             "후킹 텍스트 1줄",
             "공감 텍스트 1줄",

@@ -4,10 +4,18 @@ import os
 import random
 import io
 import requests
+import urllib.request
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from moviepy.editor import ImageClip, AudioFileClip, VideoFileClip, concatenate_videoclips
 import moviepy.video.fx.all as vfx
+
+FONT_PATH = "NanumGothicBold.ttf"
+# 폰트가 없으면 안정적인 렌더링을 위해 즉시 다운로드 (GitHub Actions 및 Windows 동일 호환)
+if not os.path.exists(FONT_PATH):
+    print("  [초기화] 텍스트 잘림 방지용 고해상도 나눔고딕 폰트 다운로드 중...")
+    urllib.request.urlretrieve("https://github.com/naver/nanumfont/raw/master/NanumFontSetup_TTF_GOTHIC/NanumGothicBold.ttf", FONT_PATH)
+
 
 async def generate_tts(text, output_file="voice.mp3"):
     """edge-tts를 사용하여 한국어 여성 음성(SunHi)으로 텍스트를 음성 파일로 변환"""
@@ -92,24 +100,11 @@ def make_text_frame(text, base_img=None, width=1080, height=1920):
     
     draw = ImageDraw.Draw(img)
     
-    # 한글 폰트 탐색 (없으면 기본 폰트 사용)
-    font = None
-    font_paths = [
-        "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",  # Ubuntu 나눔폰트
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",   # Noto CJK
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",  # 기본 폰트
-    ]
-    for fp in font_paths:
-        try:
-            font = ImageFont.truetype(fp, 65)
-            break
-        except Exception:
-            continue
-    if font is None:
-        font = ImageFont.load_default()
+    # 확실히 다운로드된 폰트 사용, 사이즈를 약간 줄여 오버플로우 원천 차단 (65 -> 55)
+    font = ImageFont.truetype(FONT_PATH, 55)
 
-    # 자막 줄바꿈 처리 (최대 너비 880px)
-    max_width = 880
+    # 자막 줄바꿈 처리 (최대 너비 보수적 설정: 880 -> 800)
+    max_width = 800
     lines = []
     current = ""
     for char in text:
@@ -141,64 +136,65 @@ def make_text_frame(text, base_img=None, width=1080, height=1920):
 def create_video(script_data, output_video="output.mp4"):
     """
     JSON 대본을 받아서 각 문장별로 TTS를 생성하고,
-    스톡 동영상 배경(또는 그라데이션) 위에 자막 클립을 올려 영상으로 합성합니다.
+    각 문장에 맞는 스톡 동영상을 다운로드하여 매 문장마다 배경이 바뀌게 합성합니다.
     """
     print("비디오 합성 시작...")
     
-    keyword = script_data.get("keyword", "business")
+    # 구형 데이터를 위한 fallback
+    keywords = script_data.get("keywords", [script_data.get("keyword", "business")] * len(script_data['captions']))
+    # captions 길이에 맞게 키워드 배열 채우기
+    while len(keywords) < len(script_data['captions']):
+        keywords.append("abstract")
+        
     width, height = 1080, 1920
-    
-    bg_video_clip = None
-    bg_image_clip = None
-    bg_video_path = "temp_bg.mp4"
-    
-    # 1. Pixabay 비디오 다운로드 시도
-    if download_pixabay_video(keyword, bg_video_path):
-        try:
-            # 어둡게 처리 (가독성 확보, colorx 사용)
-            bg_video_clip = VideoFileClip(bg_video_path).resize((width, height)).fx(vfx.colorx, 0.4)
-        except Exception as e:
-            print(f"  [경고] 비디오 클립 로드 실패: {e}")
-            bg_video_clip = None
-
-    # 비디오 다운로드 실패 시 대체 이미지 생성
-    if bg_video_clip is None:
-        print("  동영상 대신 프리미엄 다크 그라데이션 배경을 사용합니다.")
-        base_img = create_dynamic_bg(width, height)
-        bg_image_clip = ImageClip(np.array(base_img))
-
     clips = []
     total_duration = 0
     
     for idx, caption in enumerate(script_data['captions']):
+        kw = keywords[idx]
+        bg_video_path = f"temp_bg_{idx}.mp4"
         audio_file = f"temp_voice_{idx}.mp3"
         
         # 1. TTS 오디오 생성
         asyncio.run(generate_tts(caption, audio_file))
-        
-        # 2. 오디오 길이 측정
         audio_clip = AudioFileClip(audio_file)
         duration = audio_clip.duration + 0.5
         
-        # 3. 투명 배경의 자막 이미지 프레임 생성
+        # 2. 이번 자막에 쓸 비디오 다운로드
+        bg_video_clip = None
+        if download_pixabay_video(kw, bg_video_path):
+            try:
+                # 3. 비디오 강제 세로비율(9:16) 맞춤 (가로 영상이 들어와도 찌그러지지 않게 센터 크롭)
+                # 먼저 높이를 1920으로 맞춤 (비율 유지)
+                raw_clip = VideoFileClip(bg_video_path).resize(height=height)
+                # 만약 폭이 1080보다 좁다면 폭을 1080으로 맞춤 (비율 유지)
+                if raw_clip.w < width:
+                    raw_clip = raw_clip.resize(width=width)
+                # 최종적으로 1080x1920 중앙 부분을 잘라냄 (crop)
+                bg_video_clip = vfx.crop(raw_clip, x_center=raw_clip.w/2, y_center=raw_clip.h/2, width=width, height=height)
+                # 가독성을 위해 살짝 어둡게 (밝기 40%)
+                bg_video_clip = bg_video_clip.fx(vfx.colorx, 0.4)
+            except Exception as e:
+                print(f"  [경고] 비디오 클립 로드 실패: {e}")
+                bg_video_clip = None
+
+        # 비디오 다운로드 실패 시 자체 생성 다크 그라데이션 이미지 
+        if bg_video_clip is None:
+            print("  대체 그라데이션 배경을 사용합니다.")
+            base_img = create_dynamic_bg(width, height)
+            local_bg = ImageClip(np.array(base_img)).set_duration(duration)
+        else:
+            # 비디오를 duration만큼 잘라내거나 루프시킴
+            local_bg = bg_video_clip.fx(vfx.loop, duration=duration).subclip(0, duration)
+            
+        # 4. 투명 배경의 자막 프레임 생성
         frame = make_text_frame(caption, base_img=None, width=width, height=height)
-        
-        # 4. ImageClip + 오디오 합성
         text_clip = ImageClip(frame).set_duration(duration).set_audio(audio_clip)
         
-        # 5. 배경 위에 자막 얹기
-        if bg_video_clip:
-            # 현재 시점부터 duration만큼 배경 비디오의 부분을 추출하여 루프(반복)
-            # 만약 배경 비디오가 짧으면 loop로 길이를 늘림
-            local_bg = bg_video_clip.fx(vfx.loop, duration=duration).subclip(0, duration)
-            from moviepy.editor import CompositeVideoClip
-            img_clip = CompositeVideoClip([local_bg, text_clip]).set_duration(duration)
-        else:
-            # 그라데이션 이미지 배경 사용
-            local_bg = bg_image_clip.set_duration(duration)
-            from moviepy.editor import CompositeVideoClip
-            img_clip = CompositeVideoClip([local_bg, text_clip]).set_duration(duration)
-            
+        # 5. 배경 + 자막 합성
+        from moviepy.editor import CompositeVideoClip
+        img_clip = CompositeVideoClip([local_bg, text_clip]).set_duration(duration)
+        
         clips.append(img_clip)
         total_duration += duration
         print(f"  [{idx+1}/{len(script_data['captions'])}] 클립 생성 완료: {caption[:20]}...")
@@ -208,21 +204,16 @@ def create_video(script_data, output_video="output.mp4"):
     final_video.write_videofile(output_video, fps=24, codec="libx264", audio_codec="aac")
     
     # 임시 오디오 파일 삭제
+    # 임시 파일 정리
     for idx in range(len(script_data['captions'])):
         try:
             os.remove(f"temp_voice_{idx}.mp3")
         except:
             pass
-    
-    print(f"영상 합성 완료! 파일명: {output_video}")
-    
-    # 리소스 정리
-    if bg_video_clip:
-        bg_video_clip.close()
-    try:
-        os.remove(bg_video_path)
-    except:
-        pass
+        try:
+            os.remove(f"temp_bg_{idx}.mp4")
+        except:
+            pass
 
 if __name__ == "__main__":
     test_script = {
