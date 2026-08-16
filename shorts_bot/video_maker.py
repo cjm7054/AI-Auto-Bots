@@ -2,6 +2,8 @@ import asyncio
 import edge_tts
 import os
 import random
+import io
+import requests
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
@@ -103,9 +105,19 @@ def create_video(script_data, output_video="output.mp4"):
     """
     print("비디오 합성 시작 (PIL 방식)...")
     
-    # 1. 고품질 다크 그라데이션 배경 자체 생성 (API 차단 방지)
-    print("  프리미엄 배경 생성 중...")
-    base_img = create_dynamic_bg(1080, 1920)
+    keyword = script_data.get("keyword", "business")
+    width, height = 1080, 1920
+    
+    # 1. 글 내용(keyword)에 맞는 세로 배경 이미지 무료 다운로드 (loremflickr)
+    print(f"  [{keyword}] 관련 배경 이미지 다운로드 중...")
+    try:
+        response = requests.get(f"https://loremflickr.com/{width}/{height}/{keyword}", timeout=10)
+        base_img = Image.open(io.BytesIO(response.content)).convert('RGB')
+        # 글자가 잘 보이도록 배경 이미지를 어둡게 처리 (밝기 40%)
+        base_img = base_img.point(lambda p: p * 0.4)
+    except Exception as e:
+        print(f"  [경고] 이미지 다운로드 실패, 대체 그라데이션 사용: {e}")
+        base_img = create_dynamic_bg(width, height)
 
     clips = []
     
