@@ -27,4 +27,5 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
         run: python shorts_bot/main.py

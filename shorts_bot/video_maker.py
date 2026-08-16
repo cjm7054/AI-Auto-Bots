@@ -6,7 +6,8 @@ import io
 import requests
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
+from moviepy.editor import ImageClip, AudioFileClip, VideoFileClip, concatenate_videoclips
+import moviepy.video.fx.all as vfx
 
 async def generate_tts(text, output_file="voice.mp3"):
     """edge-tts를 사용하여 한국어 여성 음성(SunHi)으로 텍스트를 음성 파일로 변환"""
@@ -45,11 +46,46 @@ def create_dynamic_bg(width=1080, height=1920):
         
     return img
 
-def make_text_frame(text, base_img, width=1080, height=1920):
+def download_pixabay_video(keyword, output_filename="bg_video.mp4"):
+    """Pixabay API를 통해 키워드에 맞는 세로형 스톡 비디오를 다운로드합니다."""
+    pixabay_key = os.getenv("PIXABAY_API_KEY")
+    if not pixabay_key:
+        print("  [경고] PIXABAY_API_KEY가 없습니다. 픽사베이 영상을 사용할 수 없습니다.")
+        return False
+        
+    print(f"  [{keyword}] 픽사베이 비디오 검색 중...")
+    url = f"https://pixabay.com/api/videos/?key={pixabay_key}&q={keyword}&video_type=film&orientation=vertical&safesearch=true"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        if data.get("totalHits", 0) > 0:
+            # 첫 번째 비디오의 medium 사이즈 URL 가져오기
+            video_url = data["hits"][0]["videos"]["medium"]["url"]
+            print(f"  비디오 다운로드 중: {video_url}")
+            video_resp = requests.get(video_url, stream=True, timeout=30)
+            with open(output_filename, 'wb') as f:
+                for chunk in video_resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            print("  비디오 다운로드 완료!")
+            return True
+        else:
+            print(f"  [경고] '{keyword}'에 대한 비디오 검색 결과가 없습니다.")
+            return False
+    except Exception as e:
+        print(f"  [오류] 픽사베이 비디오 다운로드 실패: {e}")
+        return False
+
+def make_text_frame(text, base_img=None, width=1080, height=1920):
     """
     미리 준비된 배경 이미지(base_img) 위에 흰색 한글 자막을 생성합니다.
+    base_img가 없으면 투명 배경(알파 채널)으로 생성합니다.
     """
-    img = base_img.copy()
+    if base_img:
+        img = base_img.copy()
+    else:
+        img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    
     draw = ImageDraw.Draw(img)
     
     # 한글 폰트 탐색 (없으면 기본 폰트 사용)
@@ -92,8 +128,8 @@ def make_text_frame(text, base_img, width=1080, height=1920):
         bbox = draw.textbbox((0, 0), line, font=font)
         x = (width - (bbox[2] - bbox[0])) // 2
         # 그림자 효과 (가독성 향상)
-        draw.text((x + 3, y + 3), line, font=font, fill=(0, 0, 0))
-        draw.text((x, y), line, font=font, fill=(255, 255, 255))
+        draw.text((x + 3, y + 3), line, font=font, fill=(0, 0, 0, 255))
+        draw.text((x, y), line, font=font, fill=(255, 255, 255, 255))
         y += line_height
 
     return np.array(img)
@@ -101,25 +137,34 @@ def make_text_frame(text, base_img, width=1080, height=1920):
 def create_video(script_data, output_video="output.mp4"):
     """
     JSON 대본을 받아서 각 문장별로 TTS를 생성하고,
-    자체 생성한 그라데이션 배경화면 위에 자막 이미지를 만들어 영상으로 합성합니다.
+    스톡 동영상 배경(또는 그라데이션) 위에 자막 클립을 올려 영상으로 합성합니다.
     """
-    print("비디오 합성 시작 (PIL 방식)...")
+    print("비디오 합성 시작...")
     
     keyword = script_data.get("keyword", "business")
     width, height = 1080, 1920
     
-    # 1. 글 내용(keyword)에 맞는 세로 배경 이미지 무료 다운로드 (loremflickr)
-    print(f"  [{keyword}] 관련 배경 이미지 다운로드 중...")
-    try:
-        response = requests.get(f"https://loremflickr.com/{width}/{height}/{keyword}", timeout=10)
-        base_img = Image.open(io.BytesIO(response.content)).convert('RGB')
-        # 글자가 잘 보이도록 배경 이미지를 어둡게 처리 (밝기 40%)
-        base_img = base_img.point(lambda p: p * 0.4)
-    except Exception as e:
-        print(f"  [경고] 이미지 다운로드 실패, 대체 그라데이션 사용: {e}")
+    bg_video_clip = None
+    bg_image_clip = None
+    bg_video_path = "temp_bg.mp4"
+    
+    # 1. Pixabay 비디오 다운로드 시도
+    if download_pixabay_video(keyword, bg_video_path):
+        try:
+            # 어둡게 처리 (가독성 확보, colorx 사용)
+            bg_video_clip = VideoFileClip(bg_video_path).resize((width, height)).fx(vfx.colorx, 0.4)
+        except Exception as e:
+            print(f"  [경고] 비디오 클립 로드 실패: {e}")
+            bg_video_clip = None
+
+    # 비디오 다운로드 실패 시 대체 이미지 생성
+    if bg_video_clip is None:
+        print("  동영상 대신 프리미엄 다크 그라데이션 배경을 사용합니다.")
         base_img = create_dynamic_bg(width, height)
+        bg_image_clip = ImageClip(np.array(base_img))
 
     clips = []
+    total_duration = 0
     
     for idx, caption in enumerate(script_data['captions']):
         audio_file = f"temp_voice_{idx}.mp3"
@@ -131,12 +176,27 @@ def create_video(script_data, output_video="output.mp4"):
         audio_clip = AudioFileClip(audio_file)
         duration = audio_clip.duration + 0.5
         
-        # 3. PIL로 자막 이미지 프레임 생성 (배경 이미지 전달)
-        frame = make_text_frame(caption, base_img)
+        # 3. 투명 배경의 자막 이미지 프레임 생성
+        frame = make_text_frame(caption, base_img=None, width=width, height=height)
         
         # 4. ImageClip + 오디오 합성
-        img_clip = ImageClip(frame).set_duration(duration).set_audio(audio_clip)
+        text_clip = ImageClip(frame).set_duration(duration).set_audio(audio_clip)
+        
+        # 5. 배경 위에 자막 얹기
+        if bg_video_clip:
+            # 현재 시점부터 duration만큼 배경 비디오의 부분을 추출하여 루프(반복)
+            # 만약 배경 비디오가 짧으면 loop로 길이를 늘림
+            local_bg = bg_video_clip.fx(vfx.loop, duration=duration).subclip(0, duration)
+            from moviepy.editor import CompositeVideoClip
+            img_clip = CompositeVideoClip([local_bg, text_clip]).set_duration(duration)
+        else:
+            # 그라데이션 이미지 배경 사용
+            local_bg = bg_image_clip.set_duration(duration)
+            from moviepy.editor import CompositeVideoClip
+            img_clip = CompositeVideoClip([local_bg, text_clip]).set_duration(duration)
+            
         clips.append(img_clip)
+        total_duration += duration
         print(f"  [{idx+1}/{len(script_data['captions'])}] 클립 생성 완료: {caption[:20]}...")
 
     print("전체 클립 이어 붙이기...")
@@ -151,6 +211,14 @@ def create_video(script_data, output_video="output.mp4"):
             pass
     
     print(f"영상 합성 완료! 파일명: {output_video}")
+    
+    # 리소스 정리
+    if bg_video_clip:
+        bg_video_clip.close()
+    try:
+        os.remove(bg_video_path)
+    except:
+        pass
 
 if __name__ == "__main__":
     test_script = {
