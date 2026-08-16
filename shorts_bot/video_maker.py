@@ -54,27 +54,31 @@ def download_pixabay_video(keyword, output_filename="bg_video.mp4"):
         return False
         
     print(f"  [{keyword}] 픽사베이 비디오 검색 중...")
-    url = f"https://pixabay.com/api/videos/?key={pixabay_key}&q={keyword}&video_type=film&orientation=vertical&safesearch=true"
     
-    try:
-        response = requests.get(url, timeout=10)
-        data = response.json()
-        if data.get("totalHits", 0) > 0:
-            # 첫 번째 비디오의 medium 사이즈 URL 가져오기
-            video_url = data["hits"][0]["videos"]["medium"]["url"]
-            print(f"  비디오 다운로드 중: {video_url}")
-            video_resp = requests.get(video_url, stream=True, timeout=30)
-            with open(output_filename, 'wb') as f:
-                for chunk in video_resp.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            print("  비디오 다운로드 완료!")
-            return True
-        else:
-            print(f"  [경고] '{keyword}'에 대한 비디오 검색 결과가 없습니다.")
-            return False
-    except Exception as e:
-        print(f"  [오류] 픽사베이 비디오 다운로드 실패: {e}")
-        return False
+    # 검색을 여러 번 시도하기 위한 키워드 목록 (원본 키워드 -> 범용 키워드 순)
+    keywords_to_try = [keyword, "abstract", "background", "nature"]
+    
+    for kw in keywords_to_try:
+        url = f"https://pixabay.com/api/videos/?key={pixabay_key}&q={kw}&video_type=film&orientation=vertical&safesearch=true"
+        try:
+            response = requests.get(url, timeout=10)
+            data = response.json()
+            if data.get("totalHits", 0) > 0:
+                video_url = data["hits"][0]["videos"]["medium"]["url"]
+                print(f"  [{kw}] 비디오 다운로드 중: {video_url}")
+                video_resp = requests.get(video_url, stream=True, timeout=30)
+                with open(output_filename, 'wb') as f:
+                    for chunk in video_resp.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                print("  비디오 다운로드 완료!")
+                return True
+            else:
+                print(f"  [경고] '{kw}'에 대한 비디오 검색 결과가 없습니다. 다음 키워드 시도...")
+        except Exception as e:
+            print(f"  [오류] 픽사베이 API 오류 ({kw}): {e}")
+            
+    print("  [실패] 모든 키워드에 대한 비디오를 찾지 못했습니다.")
+    return False
 
 def make_text_frame(text, base_img=None, width=1080, height=1920):
     """
