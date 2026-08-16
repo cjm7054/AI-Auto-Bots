@@ -20,10 +20,8 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
-        working-directory: ./AI_자동화_수익화_봇
 
       - name: Run Blog Bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python blog_bot/main.py
-        working-directory: ./AI_자동화_수익화_봇
