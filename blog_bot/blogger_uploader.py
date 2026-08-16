@@ -1,60 +1,24 @@
 import os
-import json
-from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from dotenv import load_dotenv
+from googleapiclient.discovery import build
 import markdown
 
-load_dotenv()
-
-SCOPES = ['https://www.googleapis.com/auth/blogger']
-
-def get_blogger_service():
-    """BLOGGER_TOKEN 환경변수로 Blogger API 인증을 수행합니다."""
-    token_json = os.getenv("BLOGGER_TOKEN")
-    
-    if not token_json and os.path.exists("blogger_token.json"):
-        with open("blogger_token.json", "r", encoding="utf-8") as f:
-            token_json = f.read()
-            
-    if not token_json:
-        print("  [경고] BLOGGER_TOKEN이 없습니다.")
-        return None
-        
-    try:
-        token_data = json.loads(token_json)
-        creds = Credentials(
-            token=token_data.get("token"),
-            refresh_token=token_data.get("refresh_token"),
-            token_uri=token_data.get("token_uri", "https://oauth2.googleapis.com/token"),
-            client_id=token_data.get("client_id"),
-            client_secret=token_data.get("client_secret"),
-            scopes=token_data.get("scopes", SCOPES)
-        )
-        
-        if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            
-        service = build('blogger', 'v3', credentials=creds)
-        return service
-    except Exception as e:
-        print(f"  [오류] Blogger 인증 실패: {e}")
-        return None
-
-def upload_to_blogger(title, content, labels=None):
-    """Blogger API를 사용하여 글을 발행합니다."""
-    service = get_blogger_service()
-    if not service:
+def upload_to_blogger(title, content):
+    token_file = os.path.join(os.path.dirname(__file__), 'blogger_token.json')
+    if not os.path.exists(token_file):
+        print("[Blogger] blogger_token.json 파일이 없습니다. 업로드를 건너뜁니다.")
         return False
-        
+    
     try:
-        # 사용자의 블로그 목록 조회
+        creds = Credentials.from_authorized_user_file(token_file)
+        service = build('blogger', 'v3', credentials=creds)
+        
+        # 블로그 목록 가져오기
         blogs = service.blogs().listByUser(userId='self').execute()
         if not blogs.get('items'):
-            print("  [오류] 연결된 구글 블로그가 없습니다.")
+            print("[Blogger] 사용자의 블로그를 찾을 수 없습니다.")
             return False
-            
+        
         # 첫 번째 블로그 선택
         blog_id = blogs['items'][0]['id']
         
@@ -63,19 +27,19 @@ def upload_to_blogger(title, content, labels=None):
         
         body = {
             "kind": "blogger#post",
-            "blog": {"id": blog_id},
             "title": title,
             "content": html_content
         }
         
-        if labels:
-            body["labels"] = labels
-            
-        # 글 발행
-        post = service.posts().insert(blogId=blog_id, body=body, isDraft=False).execute()
-        print(f"  [성공] 블로거 발행 완료: {post.get('url')}")
-        return True
+        posts = service.posts()
+        result = posts.insert(blogId=blog_id, body=body, isDraft=False).execute()
         
+        print(f"[Blogger] 업로드 성공! URL: {result.get('url')}")
+        return True
     except Exception as e:
-        print(f"  [오류] 블로거 글 발행 실패: {e}")
+        print(f"[Blogger] 업로드 중 에러 발생: {e}")
         return False
+
+if __name__ == "__main__":
+    # 테스트용
+    upload_to_blogger("Blogger API 테스트", "자동 생성된 **포스팅**입니다.")

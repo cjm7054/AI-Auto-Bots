@@ -23,63 +23,36 @@ def generate_blog_post(topic, persona_keywords):
     """
     
     response = client.models.generate_content(
-        model='gemini-3.7-flash',
+        model='gemini-2.5-flash',
         contents=prompt,
     )
     return response.text
 
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-try:
-    from shorts_bot.trend_analyzer import get_daily_trends
-except ImportError:
-    get_daily_trends = None
-
+import re
 from wordpress_uploader import upload_to_wordpress
 from blogger_uploader import upload_to_blogger
 
+def extract_title_and_content(markdown_text):
+    lines = markdown_text.strip().split('\n')
+    title = "블로그 자동 생성 포스팅"
+    if lines:
+        title = re.sub(r'^#+\s*', '', lines[0]).strip()
+        content = '\n'.join(lines[1:]).strip()
+    return title, content
+
 if __name__ == "__main__":
-    print("=== [100% 무인 블로그 자동화 파이프라인 시작] ===")
-    
-    # 1. 트렌드 분석
-    if get_daily_trends:
-        print("\n[1/3] 실시간 트렌드 분석 중...")
-        trends = get_daily_trends()
-        test_topic = trends[0]
-    else:
-        test_topic = "초보자를 위한 AI 부업 시작하기"
-        
-    test_persona = "전문적이고 신뢰감을 주는 IT 에디터, 가독성 높은 문장 사용"
-    print(f"-> 선정된 주제: {test_topic}")
-    
-    # 2. 포스팅 작성
-    print("\n[2/3] AI 블로그 포스팅 작성 중...")
+    test_topic = "초보자를 위한 AI 부업 시작하기"
+    test_persona = "친근하고 유머러스한 동네 형 느낌, 짧고 간결한 문장 사용"
+    print(f"[{test_topic}] 블로그 포스팅 작성 중...\n")
     post = generate_blog_post(test_topic, test_persona)
     
-    # 제목과 본문 분리 (마크다운의 첫 번째 # 제목 줄을 찾음)
-    lines = post.split('\n')
-    title = test_topic
-    content = post
-    for i, line in enumerate(lines):
-        if line.strip().startswith('# '):
-            title = line.strip().replace('# ', '', 1)
-            content = '\n'.join(lines[i+1:]).strip()
-            break
-            
-    print(f"-> 추출된 제목: {title}")
+    print("--- 생성된 글 ---")
+    print(post)
+    print("-----------------")
     
-    # 3. 자동 업로드
-    print("\n[3/3] 블로그 자동 업로드 시작...")
+    title, content = extract_title_and_content(post)
     
-    # 워드프레스 업로드
-    wp_success = upload_to_wordpress(title, content)
-    if wp_success:
-        print("-> 워드프레스 업로드 완료!")
-        
-    # 블로거 업로드
-    blogger_success = upload_to_blogger(title, content, labels=["AI부업", "트렌드"])
-    if blogger_success:
-        print("-> 구글 블로거 업로드 완료!")
-        
-    print("\n=== [모든 파이프라인 종료] ===")
+    print("\n[업로드 시작]")
+    upload_to_wordpress(title, content)
+    upload_to_blogger(title, content)
+    print("\n[모든 작업 완료]")
