@@ -7,6 +7,11 @@ import requests
 import urllib.request
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+
+# 몽키패치: Pillow v10 이상에서 Image.ANTIALIAS가 삭제되어 moviepy resize()가 에러를 뿜는 현상 방지
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+
 from moviepy.editor import ImageClip, AudioFileClip, VideoFileClip, concatenate_videoclips
 import moviepy.video.fx.all as vfx
 
