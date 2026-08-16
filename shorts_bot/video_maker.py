@@ -82,7 +82,7 @@ def make_text_frame(text, base_img=None, width=1080, height=1920):
     base_img가 없으면 투명 배경(알파 채널)으로 생성합니다.
     """
     if base_img:
-        img = base_img.copy()
+        img = base_img.copy().resize((width, height))
     else:
         img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     
