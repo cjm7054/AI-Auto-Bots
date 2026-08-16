@@ -15,11 +15,11 @@ async def generate_tts(text, output_file="voice.mp3"):
 def create_dynamic_bg(width=1080, height=1920):
     """자체적으로 다크 그라데이션 + 추상적인 도형 배경을 생성하여 API 차단 문제를 해결"""
     palettes = [
-        ((15, 32, 39), (32, 58, 67)), # Deep Space
-        ((35, 11, 54), (16, 5, 24)), # Deep Purple
-        ((25, 0, 10), (50, 0, 20)), # Deep Red
-        ((0, 30, 60), (0, 10, 20)), # Deep Blue
-        ((20, 40, 20), (5, 15, 5)), # Deep Green
+        ((43, 88, 118), (78, 67, 118)),   # 오션 퍼플
+        ((100, 43, 115), (198, 66, 110)), # 선셋 핑크
+        ((20, 30, 48), (36, 59, 85)),     # 딥 블루 (기존보다 밝음)
+        ((17, 153, 142), (56, 239, 125)), # 에메랄드 그린
+        ((62, 81, 81), (222, 203, 164)),  # 올리브 샌드
     ]
     c1, c2 = random.choice(palettes)
     img = Image.new('RGB', (width, height))
@@ -38,7 +38,7 @@ def create_dynamic_bg(width=1080, height=1920):
         x = random.randint(-200, width)
         y = random.randint(-200, height)
         overlay = Image.new('RGBA', (width, height), (0,0,0,0))
-        ImageDraw.Draw(overlay).ellipse([x, y, x+rad, y+rad], fill=(255, 255, 255, 12))
+        ImageDraw.Draw(overlay).ellipse([x, y, x+rad, y+rad], fill=(255, 255, 255, 25))
         img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
         
     return img
