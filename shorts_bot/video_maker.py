@@ -1,8 +1,7 @@
 import asyncio
 import edge_tts
 import os
-import io
-import requests
+import random
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
@@ -12,6 +11,37 @@ async def generate_tts(text, output_file="voice.mp3"):
     voice = "ko-KR-SunHiNeural"
     communicate = edge_tts.Communicate(text, voice, rate="+10%")
     await communicate.save(output_file)
+
+def create_dynamic_bg(width=1080, height=1920):
+    """자체적으로 다크 그라데이션 + 추상적인 도형 배경을 생성하여 API 차단 문제를 해결"""
+    palettes = [
+        ((15, 32, 39), (32, 58, 67)), # Deep Space
+        ((35, 11, 54), (16, 5, 24)), # Deep Purple
+        ((25, 0, 10), (50, 0, 20)), # Deep Red
+        ((0, 30, 60), (0, 10, 20)), # Deep Blue
+        ((20, 40, 20), (5, 15, 5)), # Deep Green
+    ]
+    c1, c2 = random.choice(palettes)
+    img = Image.new('RGB', (width, height))
+    draw = ImageDraw.Draw(img)
+    
+    # 세로 그라데이션 그리기
+    for y in range(height):
+        r = int(c1[0] + (c2[0] - c1[0]) * y / height)
+        g = int(c1[1] + (c2[1] - c1[1]) * y / height)
+        b = int(c1[2] + (c2[2] - c1[2]) * y / height)
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
+        
+    # 은은한 빛(원형) 추가
+    for _ in range(5):
+        rad = random.randint(300, 800)
+        x = random.randint(-200, width)
+        y = random.randint(-200, height)
+        overlay = Image.new('RGBA', (width, height), (0,0,0,0))
+        ImageDraw.Draw(overlay).ellipse([x, y, x+rad, y+rad], fill=(255, 255, 255, 12))
+        img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
+        
+    return img
 
 def make_text_frame(text, base_img, width=1080, height=1920):
     """
@@ -69,20 +99,13 @@ def make_text_frame(text, base_img, width=1080, height=1920):
 def create_video(script_data, output_video="output.mp4"):
     """
     JSON 대본을 받아서 각 문장별로 TTS를 생성하고,
-    랜덤 배경화면 위에 자막 이미지를 만들어 영상으로 합성합니다.
+    자체 생성한 그라데이션 배경화면 위에 자막 이미지를 만들어 영상으로 합성합니다.
     """
     print("비디오 합성 시작 (PIL 방식)...")
     
-    # 1. 랜덤 배경 이미지 가져오기 (가독성을 위해 어둡게 처리)
-    width, height = 1080, 1920
-    try:
-        print("  배경 이미지 다운로드 중...")
-        response = requests.get(f"https://picsum.photos/{width}/{height}", timeout=10)
-        base_img = Image.open(io.BytesIO(response.content)).convert('RGB')
-        base_img = base_img.point(lambda p: p * 0.4) # 어둡게 처리 (밝기 40%)
-    except Exception as e:
-        print(f"  [경고] 배경 이미지 다운로드 실패, 단색 배경 사용: {e}")
-        base_img = Image.new('RGB', (width, height), color=(20, 20, 30))
+    # 1. 고품질 다크 그라데이션 배경 자체 생성 (API 차단 방지)
+    print("  프리미엄 배경 생성 중...")
+    base_img = create_dynamic_bg(1080, 1920)
 
     clips = []
     
