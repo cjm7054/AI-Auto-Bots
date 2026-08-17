@@ -25,7 +25,6 @@ jobs:
           pip install -r requirements.txt
 
       - name: Restore Blogger token
-        if: ${{ secrets.BLOGGER_TOKEN != '' }}
         run: |
           mkdir -p blog_bot
           printf '%s' '${{ secrets.BLOGGER_TOKEN }}' > blog_bot/blogger_token.json
