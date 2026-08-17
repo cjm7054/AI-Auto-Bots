@@ -1,0 +1,48 @@
+name: Blog Bot - AdSense Safe Draft
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 23 * * *'   # KST 08:00
+    - cron: '0 3 * * *'    # KST 12:00
+    - cron: '0 9 * * *'    # KST 18:00
+
+jobs:
+  generate-blog-draft:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore Blogger token
+        if: ${{ secrets.BLOGGER_TOKEN != '' }}
+        run: |
+          mkdir -p blog_bot
+          printf '%s' '${{ secrets.BLOGGER_TOKEN }}' > blog_bot/blogger_token.json
+
+      - name: Generate policy-safe blog draft
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BLOG_SAFE_MODE: true
+          BLOG_ALLOW_AUTO_PUBLISH: false
+          BLOG_PUBLISH_STATUS: draft
+          BLOG_UPLOAD_TARGETS: wordpress,blogger
+          BLOG_SITE_NICHE: ${{ vars.BLOG_SITE_NICHE || 'AI 생산성·자동화 입문' }}
+          BLOG_TOPICS: ${{ vars.BLOG_TOPICS || '' }}
+          BLOG_PERSONA: ${{ vars.BLOG_PERSONA || '과장 없이 차분하게 설명하는 실무형 블로거' }}
+          BLOG_MIN_WORDS: ${{ vars.BLOG_MIN_WORDS || '1400' }}
+          WP_URL: ${{ secrets.WP_URL }}
+          WP_USERNAME: ${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          GEMINI_MODELS: ${{ vars.GEMINI_MODELS || 'gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.5-pro' }}
+        run: python blog_bot/main.py
