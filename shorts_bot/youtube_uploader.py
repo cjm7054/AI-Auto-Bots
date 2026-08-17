@@ -1,93 +1,112 @@
 import os
 import json
-from googleapiclient.discovery import build
+import time
+import random
+import logging
+from typing import List, Optional, Dict
+
+import httplib2
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
-SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
+SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+logger = logging.getLogger("youtube_uploader")
+
+
+def _load_token_from_env_or_file() -> Credentials:
+    token_env = os.getenv("YOUTUBE_TOKEN", "").strip()
+    if token_env:
+        try:
+            token_info = json.loads(token_env)
+            return Credentials.from_authorized_user_info(token_info, SCOPES)
+        except json.JSONDecodeError:
+            if os.path.exists(token_env):
+                with open(token_env, "r", encoding="utf-8") as f:
+                    token_info = json.load(f)
+                return Credentials.from_authorized_user_info(token_info, SCOPES)
+            raise RuntimeError("YOUTUBE_TOKEN 환경변수가 JSON도 아니고 유효한 파일 경로도 아닙니다.")
+    if os.path.exists("youtube_token.json"):
+        with open("youtube_token.json", "r", encoding="utf-8") as f:
+            token_info = json.load(f)
+        return Credentials.from_authorized_user_info(token_info, SCOPES)
+    raise RuntimeError("YouTube 인증 토큰이 없습니다. YOUTUBE_TOKEN 또는 youtube_token.json 필요")
+
 
 def get_authenticated_service():
-    """
-    GitHub Secrets의 YOUTUBE_TOKEN 환경변수로 YouTube API 인증을 수행합니다.
-    로컬에서는 youtube_token.json 파일을 사용합니다.
-    """
-    token_json = os.getenv("YOUTUBE_TOKEN")
-    
-    # 환경변수 없으면 로컬 파일에서 시도
-    if not token_json and os.path.exists("youtube_token.json"):
-        with open("youtube_token.json", "r", encoding="utf-8") as f:
-            token_json = f.read()
-        print("-> 로컬 youtube_token.json 파일로 인증합니다.")
-    
-    if not token_json:
-        print("-> [경고] YOUTUBE_TOKEN이 없어 업로드를 건너뜁니다.")
-        print("   설정 방법: shorts_bot/get_youtube_token.py 를 실행하세요.")
-        return None
-    
-    try:
-        token_data = json.loads(token_json)
-        creds = Credentials(
-            token=token_data.get("token"),
-            refresh_token=token_data.get("refresh_token"),
-            token_uri=token_data.get("token_uri", "https://oauth2.googleapis.com/token"),
-            client_id=token_data.get("client_id"),
-            client_secret=token_data.get("client_secret"),
-            scopes=token_data.get("scopes", SCOPES)
-        )
-        
-        # 토큰 만료 시 자동 갱신 (refresh_token이 있으면 무기한 사용 가능)
+    creds = _load_token_from_env_or_file()
+    if not creds.valid:
         if creds.expired and creds.refresh_token:
-            print("-> 토큰 만료됨, 자동 갱신 중...")
+            logger.info("YouTube 토큰 refresh 시도")
             creds.refresh(Request())
-        
-        service = build('youtube', 'v3', credentials=creds)
-        print("-> YouTube API 인증 성공!")
-        return service
-        
-    except Exception as e:
-        print(f"-> [오류] YouTube 인증 실패: {e}")
-        return None
+        else:
+            raise RuntimeError("YouTube 토큰이 유효하지 않습니다. get_youtube_token.py로 재발급하세요.")
+    return build("youtube", "v3", credentials=creds)
 
-def upload_video(youtube, video_file, title, description, tags):
-    """지정된 정보를 바탕으로 YouTube에 영상을 업로드합니다."""
-    print(f"-> 업로드 시작: {title}")
-    
+
+def upload_video(youtube, file_path: str, title: str, description: str, tags: Optional[List[str]] = None, category_id: str = "25", privacy_status: str = "private", publish_at: Optional[str] = None, made_for_kids: bool = False) -> Dict:
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"업로드할 파일이 없습니다: {file_path}")
+    tags = tags or []
+    safe_description = description.strip()
+    if "자료화면" not in safe_description:
+        safe_description += "\n\n※ 본 영상에는 자료화면(representative footage)과 AI 보조 제작 요소(TTS/요약)가 포함될 수 있습니다."
+
     body = {
-        'snippet': {
-            'title': title,
-            'description': description + "\n\n#AI부업 #유튜브쇼츠 #자동화",
-            'tags': tags,
-            'categoryId': '22'  # 22번: People & Blogs
+        "snippet": {
+            "title": title[:100],
+            "description": safe_description[:5000],
+            "tags": tags[:15],
+            "categoryId": category_id,
         },
-        'status': {
-            'privacyStatus': 'private',  # 처음엔 비공개로 업로드
-            'selfDeclaredMadeForKids': False
+        "status": {
+            "privacyStatus": privacy_status,
+            "selfDeclaredMadeForKids": made_for_kids,
+            "madeForKids": made_for_kids,
         }
     }
-    
-    media = MediaFileUpload(video_file, chunksize=-1, resumable=True, mimetype='video/mp4')
-    
-    request = youtube.videos().insert(
-        part=','.join(body.keys()),
-        body=body,
-        media_body=media
-    )
-    
-    # 진행률 표시와 함께 업로드
-    response = None
-    while response is None:
-        status, response = request.next_chunk()
-        if status:
-            pct = int(status.progress() * 100)
-            print(f"   업로드 진행: {pct}%")
-    
-    video_id = response['id']
-    print(f"-> 업로드 완료! 영상 ID: {video_id}")
-    print(f"   비공개 링크: https://www.youtube.com/watch?v={video_id}")
-    print(f"   (YouTube Studio에서 공개로 변경 가능)")
-    return video_id
+    if publish_at:
+        body["status"]["privacyStatus"] = "private"
+        body["status"]["publishAt"] = publish_at
 
-if __name__ == "__main__":
-    print("유튜브 자동 업로드 모듈입니다.")
-    print("토큰 생성: python get_youtube_token.py 를 먼저 실행하세요.")
+    media = MediaFileUpload(file_path, chunksize=256 * 1024, resumable=True)
+    request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
+
+    response = None
+    error = None
+    retry = 0
+    max_retries = 10
+    while response is None:
+        try:
+            status, response = request.next_chunk()
+            if status:
+                logger.info(f"업로드 진행률: {int(status.progress() * 100)}%")
+        except HttpError as e:
+            if e.resp.status in [500, 502, 503, 504]:
+                error = f"재시도 가능한 업로드 오류: {e}"
+            else:
+                raise
+        except (httplib2.HttpLib2Error, OSError) as e:
+            error = f"재시도 가능한 전송 오류: {e}"
+
+        if error:
+            retry += 1
+            if retry > max_retries:
+                raise RuntimeError(f"업로드 재시도 한도 초과: {error}")
+            sleep_seconds = min(60, (2 ** retry) + random.random())
+            logger.warning(f"{error} | {sleep_seconds:.1f}초 후 재시도")
+            time.sleep(sleep_seconds)
+            error = None
+
+    return {
+        "video_id": response.get("id"),
+        "title": title,
+        "privacy_status": body["status"]["privacyStatus"],
+        "publish_at": body["status"].get("publishAt"),
+        "youtube_url": f"https://www.youtube.com/watch?v={response.get('id')}" if response.get("id") else None,
+        "raw_response": response,
+        "note": "실존 인물/현장을 사실처럼 보이게 하는 합성 연출이 있으면 YouTube Studio에서 altered/synthetic content disclosure를 추가 검토하세요."
+    }
