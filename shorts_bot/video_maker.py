@@ -12,6 +12,11 @@ import requests
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
+if not hasattr(Image, "ANTIALIAS"):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+if not hasattr(Image, "LANCZOS"):
+    Image.LANCZOS = Image.Resampling.LANCZOS
+
 from moviepy.editor import (
     AudioFileClip,
     VideoFileClip,
