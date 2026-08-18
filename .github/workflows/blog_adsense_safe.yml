@@ -1,47 +1,240 @@
-name: Blog Bot - AdSense Safe Draft
+name: Blog AdSense Safe 7-Gate Preflight
 
+# ─────────────────────────────────────────────────────────────
+# 발행 전 사람 손길 7-Gate 검증 (AdSense Scaled Content Abuse 대응)
+# dry_run=true  → 게이트만 검증 (프리플라이트, 발행 안 함)  [기본값]
+# dry_run=false → 7-Gate 모두 통과 시에만 실제 발행
+# ─────────────────────────────────────────────────────────────
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 23 * * *'   # KST 08:00
-    - cron: '0 3 * * *'    # KST 12:00
-    - cron: '0 9 * * *'    # KST 18:00
+    inputs:
+      dry_run:
+        description: 'true=7-Gate 프리플라이트만 실행(발행 안 함) / false=통과 후 실제 발행'
+        required: true
+        type: boolean
+        default: true
+      platform:
+        description: '발행 대상 플랫폼'
+        required: false
+        type: choice
+        default: both
+        options:
+          - both
+          - wordpress
+          - blogger
+      post_file:
+        description: '특정 글만 검증 (비우면 drafts/human_edited/*.md 전체)'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: adsense-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CATEGORY_SLOGAN: 'AI·업무 자동화'
 
 jobs:
-  generate-blog-draft:
+  # ═════════════════════════════════════════════════════════════
+  # JOB 1 · 7-GATE 사람 손길 검증
+  # ═════════════════════════════════════════════════════════════
+  gate-validate:
+    name: "🛡️ 7-Gate 사람 손길 검증"
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: 📥 코드 체크아웃
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: 🐍 파이썬 세팅
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Restore Blogger token
-        run: |
-          mkdir -p blog_bot
-          printf '%s' '${{ secrets.BLOGGER_TOKEN }}' > blog_bot/blogger_token.json
-
-      - name: Generate policy-safe blog draft
+      - name: 📂 검증 대상 파일 결정
+        id: targets
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          BLOG_SAFE_MODE: true
-          BLOG_ALLOW_AUTO_PUBLISH: false
-          BLOG_PUBLISH_STATUS: draft
-          BLOG_UPLOAD_TARGETS: wordpress,blogger
-          BLOG_SITE_NICHE: ${{ vars.BLOG_SITE_NICHE || 'AI 생산성·자동화 입문' }}
-          BLOG_TOPICS: ${{ vars.BLOG_TOPICS || '' }}
-          BLOG_PERSONA: ${{ vars.BLOG_PERSONA || '과장 없이 차분하게 설명하는 실무형 블로거' }}
-          BLOG_MIN_WORDS: ${{ vars.BLOG_MIN_WORDS || '1400' }}
-          WP_URL: ${{ secrets.WP_URL }}
+          POST_FILE: ${{ inputs.post_file }}
+        run: |
+          mkdir -p reports
+          if [ -n "$POST_FILE" ]; then
+            echo "$POST_FILE" > /tmp/targets.txt
+          else
+            find drafts/human_edited -name '*.md' 2>/dev/null | sort > /tmp/targets.txt
+          fi
+          COUNT=$(wc -l < /tmp/targets.txt)
+          echo "🔎 검증 대상 글: ${COUNT}개"
+          cat /tmp/targets.txt
+          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "⚠️ drafts/human_edited/ 에 .md 파일이 없습니다 → 안전 종료 (에러 아님)"
+          fi
+
+      - name: 🧪 7-Gate 통합 검증 실행 (1회, 파일별 리포트 수집)
+        if: steps.targets.outputs.count > 0
+        run: |
+          python3 - <<'PY'
+          import json, sys, subprocess
+          from pathlib import Path
+
+          targets = Path('/tmp/targets.txt').read_text().splitlines()
+          gates = {f"G{i+1}": {"ok": True, "lines": []} for i in range(7)}
+          gate_names = [
+              "1인칭 경험 단락", "직접 캡처 이미지", "독자 행동 유도",
+              "AI 어투/과장 밀도", "카테고리 슬러그 통일",
+              "SEO 작성자/작성일", "내부 링크",
+          ]
+
+          for md in targets:
+              meta = str(Path(md).with_suffix('.meta.json'))
+              if not Path(meta).exists():
+                  meta = ""
+              proc = subprocess.run(
+                  [sys.executable, "blog_bot/human_touch_v2.py", md, meta, "wordpress", "ai_side_hustle"],
+                  capture_output=True, text=True,
+              )
+              try:
+                  report = json.loads(proc.stdout)
+              except json.JSONDecodeError:
+                  print(f"❌ 리포트 파싱 실패: {md}", file=sys.stderr)
+                  print(proc.stdout + proc.stderr, file=sys.stderr)
+                  sys.exit(1)
+              for i, chk in enumerate(report.get("checks", [])):
+                  g = gates[f"G{i+1}"]
+                  if not chk.get("ok"):
+                      g["ok"] = False
+                      g["lines"].append(
+                          f"  - {md}\n    게이트: {gate_names[i]}\n"
+                          f"    현재값: {chk.get('detail')}\n"
+                          f"    수정법: {chk.get('fix_hint')}"
+                      )
+
+          json.dump(gates, open('/tmp/gates.json', 'w', encoding='utf-8'),
+                    ensure_ascii=False, indent=2)
+          print("✅ 검증 완료 — 게이트별 결과를 아래 순서로 확인합니다")
+          PY
+
+      # ── G1 ~ G7 · 게이트별 독립 검문소 ──
+      - name: "🛡️ G1 · 1인칭 경험 단락 (≥120자 · 패턴 ≥2)"
+        if: steps.targets.outputs.count > 0
+        continue-on-error: false
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          g = json.load(open('/tmp/gates.json'))['G1']
+          print('\n'.join(g['lines']) if g['lines'] else '✅ 통과')
+          sys.exit(0 if g['ok'] else 1)
+          PY
+
+      - name: "🛡️ G2 · 직접 캡처 이미지 (capture_origin=self/modified/annotated)"
+        if: steps.targets.outputs.count > 0
+        continue-on-error: false
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          g = json.load(open('/tmp/gates.json'))['G2']
+          print('\n'.join(g['lines']) if g['lines'] else '✅ 통과')
+          sys.exit(0 if g['ok'] else 1)
+          PY
+
+      - name: "🛡️ G3 · 독자 행동 유도 (≥1개)"
+        if: steps.targets.outputs.count > 0
+        continue-on-error: false
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          g = json.load(open('/tmp/gates.json'))['G3']
+          print('\n'.join(g['lines']) if g['lines'] else '✅ 통과')
+          sys.exit(0 if g['ok'] else 1)
+          PY
+
+      - name: "🛡️ G4 · AI 어투 ≤1개 + 과장 표현 0개"
+        if: steps.targets.outputs.count > 0
+        continue-on-error: false
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          g = json.load(open('/tmp/gates.json'))['G4']
+          print('\n'.join(g['lines']) if g['lines'] else '✅ 통과')
+          sys.exit(0 if g['ok'] else 1)
+          PY
+
+      - name: "🛡️ G5 · 카테고리 슬러그 통일 (AI·업무 자동화)"
+        if: steps.targets.outputs.count > 0
+        continue-on-error: false
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          g = json.load(open('/tmp/gates.json'))['G5']
+          print('\n'.join(g['lines']) if g['lines'] else '✅ 통과')
+          sys.exit(0 if g['ok'] else 1)
+          PY
+
+      - name: "🛡️ G6 · SEO 작성자/작성일/최종수정일 표기"
+        if: steps.targets.outputs.count > 0
+        continue-on-error: false
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          g = json.load(open('/tmp/gates.json'))['G6']
+          print('\n'.join(g['lines']) if g['lines'] else '✅ 통과')
+          sys.exit(0 if g['ok'] else 1)
+          PY
+
+      - name: "🛡️ G7 · 내부 링크 (≥1개)"
+        if: steps.targets.outputs.count > 0
+        continue-on-error: false
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          g = json.load(open('/tmp/gates.json'))['G7']
+          print('\n'.join(g['lines']) if g['lines'] else '✅ 통과')
+          sys.exit(0 if g['ok'] else 1)
+          PY
+
+      - name: "🎉 전체 7-Gate 통과 — 발행 가능 상태"
+        if: steps.targets.outputs.count > 0
+        run: echo "✅ G1~G7 모두 통과! dry_run=false로 재실행하면 실제 발행이 진행됩니다."
+
+  # ═════════════════════════════════════════════════════════════
+  # JOB 2 · 실제 발행 (dry_run=false && 7-Gate 통과 시에만)
+  # 시크릿은 env로만 주입 — 로그에 값 절대 미노출
+  # ═════════════════════════════════════════════════════════════
+  publish:
+    name: "🚀 실제 발행 (워드프레스 + 블로거)"
+    needs: gate-validate
+    if: ${{ ! inputs.dry_run && needs.gate-validate.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 🐍 파이썬 세팅
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 의존성 설치
+        run: pip install --quiet requests google-api-python-client
+
+      - name: 🚀 main_v2.py 발행 실행
+        env:
+          WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
           WP_USERNAME: ${{ secrets.WP_USERNAME }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
-          GEMINI_MODELS: ${{ vars.GEMINI_MODELS || 'gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.5-pro' }}
-        run: python blog_bot/main.py
+          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+          BLOGGER_TOKEN_PATH: ${{ secrets.BLOGGER_TOKEN_PATH }}
+        run: |
+          PLATFORM="${{ inputs.platform }}"
+          echo "🛰️ 발행 플랫폼: $PLATFORM"
+          for md in drafts/human_edited/*.md; do
+            [ -f "$md" ] || continue
+            meta="${md%.md}.meta.json"
+            [ -f "$meta" ] || meta=""
+            echo "📤 발행: $md"
+            python main_v2.py --platform "$PLATFORM" --file "$md" --meta "$meta" --action publish || exit 1
+          done
+          echo "✅ 발행 완료 — 7-Gate 통과 글만 게시되었습니다"
