@@ -51,14 +51,17 @@ class KakaoNotifier:
             "Content-Type": "application/x-www-form-urlencoded"
         }
         
+        # 카카오톡 텍스트 내에서 자동 링크되도록 본문에 주소 추가
+        full_text = f"{text}\n\n🔗 워드프레스 관리자 (클릭):\nhttps://insightlab365.com/wp-admin/edit.php\n\n🔗 블로거 관리자 (클릭):\nhttps://draft.blogger.com"
+        
         template_object = {
             "object_type": "text",
-            "text": text,
+            "text": full_text,
             "link": {
-                "web_url": "https://insightlab365.com/wp-admin/edit.php",
-                "mobile_web_url": "https://insightlab365.com/wp-admin/edit.php"
+                "web_url": "https://github.com/cjm7054/AI-Auto-Bots",
+                "mobile_web_url": "https://github.com/cjm7054/AI-Auto-Bots"
             },
-            "button_title": "워드프레스에서 확인"
+            "button_title": "깃허브 확인"
         }
         
         import json
