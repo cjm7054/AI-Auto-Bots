@@ -36,7 +36,7 @@ if not GEMINI_API_KEY:
     raise RuntimeError("GEMINI_API_KEY 가 필요합니다.")
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-MODELS_TO_TRY = [m.strip() for m in os.getenv("GEMINI_MODELS", "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.5-pro").split(",") if m.strip()]
+MODELS_TO_TRY = [m.strip() for m in os.getenv("GEMINI_MODELS", "gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-pro-preview").split(",") if m.strip()]
 DEFAULT_PRIVACY_STATUS = os.getenv("SHORTS_DEFAULT_PRIVACY_STATUS", "private").strip()
 REQUIRE_HUMAN_REVIEW = os.getenv("SHORTS_REQUIRE_HUMAN_REVIEW", "true").lower() == "true"
 BRAND_NAME = os.getenv("SHORTS_BRAND_NAME", "AI 이슈 브리핑")

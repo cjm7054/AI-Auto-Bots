@@ -32,7 +32,7 @@ if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다.")
 
 client = genai.Client(api_key=GEMINI_API_KEY)
-DEFAULT_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"]
+DEFAULT_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro-preview"]
 env_models = os.getenv("GEMINI_MODELS", "").strip()
 MODELS_TO_TRY = [m.strip() for m in env_models.split(",") if m.strip()] if env_models else DEFAULT_MODELS
 
