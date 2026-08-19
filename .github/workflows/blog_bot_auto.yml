@@ -1,0 +1,39 @@
+name: Blog Bot Auto Publish
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # 매일 KST 18:00 (UTC 09:00)
+    - cron: '0 0 * * *'  # 매일 KST 09:00 (UTC 00:00)
+  workflow_dispatch:
+
+concurrency:
+  group: blog-bot-auto-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  run-blog-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Blog Bot
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
+          WP_USERNAME: ${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
+          BLOGGER_TOKEN_PATH: ${{ secrets.BLOGGER_TOKEN_PATH }}
+          # 자동 게시 관련 설정
+          BLOG_ALLOW_AUTO_PUBLISH: "true"
+          BLOG_PUBLISH_STATUS: "publish"
+        run: python blog_bot/main.py
