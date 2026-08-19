@@ -195,6 +195,10 @@ def main():
     if "blogger" in BLOG_UPLOAD_TARGETS:
         upload_to_blogger(title, markdown_text, is_draft=(final_status != "publish"))
 
+    if final_status == "draft":
+        from notifier import send_draft_notification
+        send_draft_notification(title, draft_path)
+
     logger.info("블로그 자동화 완료")
 
 
