@@ -53,7 +53,7 @@ def choose_topic() -> str:
     if topics:
         idx = datetime.now().day % len(topics)
         return topics[idx]
-    return "항만 유지관리 체크리스트"
+    return "인공지능 챗봇 최신 동향"
 
 
 def generate_blog_post(topic: str, persona_keywords: str, sources: List[Dict]) -> str:
