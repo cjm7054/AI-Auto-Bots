@@ -55,10 +55,10 @@ class KakaoNotifier:
             "object_type": "text",
             "text": text,
             "link": {
-                "web_url": "https://github.com",
-                "mobile_web_url": "https://github.com"
+                "web_url": "https://insightlab365.com/wp-admin/edit.php",
+                "mobile_web_url": "https://insightlab365.com/wp-admin/edit.php"
             },
-            "button_title": "확인하기"
+            "button_title": "워드프레스에서 확인"
         }
         
         import json
