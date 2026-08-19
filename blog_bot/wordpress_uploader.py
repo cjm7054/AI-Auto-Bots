@@ -8,7 +8,7 @@ load_dotenv()
 
 
 def upload_to_wordpress(title, markdown_content, status="draft", categories=None, tags=None):
-    wp_url = os.getenv("WP_URL")
+    wp_url = os.getenv("WP_SITE_URL", os.getenv("WP_URL"))
     wp_username = os.getenv("WP_USERNAME")
     wp_app_password = os.getenv("WP_APP_PASSWORD")
 
