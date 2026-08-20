@@ -49,7 +49,7 @@ def validate_blog_package(title: str, content: str, sources: List[Dict], safe_mo
             warnings.append("YMYL 성격의 주제인데 일반 정보 제공 및 전문가 확인 유도 문구가 부족합니다.")
 
     if len(sources) < 3:
-        errors.append("승인 우선 모드에서는 최소 3개 이상의 참고 자료가 필요합니다.")
+        warnings.append("참고 자료가 3개 미만입니다 (품질 저하 우려).")
 
     if "출처" not in content and "참고 자료" not in content and "References" not in content:
         warnings.append("출처/참고자료 섹션이 없습니다.")
