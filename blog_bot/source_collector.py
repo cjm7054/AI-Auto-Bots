@@ -21,6 +21,13 @@ def _clean_title(title: str) -> str:
     return title
 
 
+def _verify_link(url: str) -> bool:
+    try:
+        r = requests.head(url, headers={"User-Agent": USER_AGENT}, timeout=5, allow_redirects=True)
+        return r.status_code < 400
+    except Exception:
+        return False
+
 def collect_google_news_sources(query: str, max_items: int = 6) -> List[Dict]:
     encoded = quote_plus(f"{query} when:30d")
     url = f"https://news.google.com/rss/search?q={encoded}&hl=ko&gl=KR&ceid=KR:ko"
@@ -34,7 +41,7 @@ def collect_google_news_sources(query: str, max_items: int = 6) -> List[Dict]:
         results = []
         seen = set()
 
-        for item in items[:max_items * 2]:
+        for item in items: # Look through more items in case many fail verification
             title = _clean_title(item.findtext("title", default=""))
             link = item.findtext("link", default="").strip()
             pub_date = item.findtext("pubDate", default="").strip()
@@ -46,6 +53,10 @@ def collect_google_news_sources(query: str, max_items: int = 6) -> List[Dict]:
             if key in seen:
                 continue
             seen.add(key)
+            
+            # Verify the link actually opens
+            if not _verify_link(link):
+                continue
 
             results.append({
                 "title": title,
