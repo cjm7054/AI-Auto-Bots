@@ -25,21 +25,26 @@ def _verify_and_resolve_link(url: str) -> str:
     try:
         r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=10, allow_redirects=True)
             
-        # 리다이렉트되어 실제 언론사 사이트로 넘어간 경우 (가장 확실함)
-        if not r.url.startswith("https://news.google.com/"):
+        def is_valid_url(u):
+            # http로 시작하고 구글 뉴스 관련 주소가 아니어야 함
+            return u and u.startswith("http") and "news.google.com" not in u and "google.com/url" not in u
+
+        # 1. requests가 최종 도착한 URL이 정상 언론사 사이트인 경우
+        if is_valid_url(r.url):
             return r.url
             
         import re
-        # Google News 중간 페이지에서 실제 URL 추출 시도
+        # 2. 구글 뉴스 중간 페이지의 data-n-au 속성에서 진짜 URL 추출
         match = re.search(r'data-n-au="([^"]+)"', r.text)
-        if match:
+        if match and is_valid_url(match.group(1)):
             return match.group(1)
             
-        match = re.search(r'<a[^>]*href="([^"]+)"[^>]*>여기를 클릭', r.text)
-        if match:
+        # 3. 리디렉션 a 태그에서 진짜 URL 추출
+        match = re.search(r'<a[^>]*href="([^"]+)"', r.text)
+        if match and is_valid_url(match.group(1)):
             return match.group(1)
             
-        # 구글 뉴스 링크 그대로 남아있거나 400 에러 페이지면 무조건 폐기(None)
+        # 진짜 언론사 주소를 못 찾으면 무조건 폐기
         return None
     except Exception:
         return None
