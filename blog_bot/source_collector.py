@@ -24,8 +24,10 @@ def _clean_title(title: str) -> str:
 def _verify_and_resolve_link(url: str) -> str:
     try:
         r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=10, allow_redirects=True)
-        if "400. 오류가 발생했습니다" in r.text or "요청 형식이 잘못되어" in r.text:
-            return None
+            
+        # 리다이렉트되어 실제 언론사 사이트로 넘어간 경우 (가장 확실함)
+        if not r.url.startswith("https://news.google.com/"):
+            return r.url
             
         import re
         # Google News 중간 페이지에서 실제 URL 추출 시도
@@ -37,11 +39,8 @@ def _verify_and_resolve_link(url: str) -> str:
         if match:
             return match.group(1)
             
-        # 리다이렉트되어 실제 언론사 사이트로 넘어간 경우
-        if not r.url.startswith("https://news.google.com/"):
-            return r.url
-            
-        return url
+        # 구글 뉴스 링크 그대로 남아있거나 400 에러 페이지면 무조건 폐기(None)
+        return None
     except Exception:
         return None
 
