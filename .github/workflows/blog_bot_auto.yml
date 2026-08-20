@@ -37,6 +37,6 @@ jobs:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           # 자동 게시 관련 설정
-          BLOG_ALLOW_AUTO_PUBLISH: "false"
-          BLOG_PUBLISH_STATUS: "draft"
+          BLOG_ALLOW_AUTO_PUBLISH: "true"
+          BLOG_PUBLISH_STATUS: "publish"
         run: python blog_bot/main.py
