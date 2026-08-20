@@ -54,7 +54,7 @@ def validate_blog_package(title: str, content: str, sources: List[Dict], safe_mo
     if "출처" not in content and "참고 자료" not in content and "References" not in content:
         warnings.append("출처/참고자료 섹션이 없습니다.")
 
-    auto_publish_allowed = (len(errors) == 0)
+    auto_publish_allowed = (safe_mode != "adsense_approval" and len(errors) == 0 and len(warnings) == 0)
 
     return {
         "approved_for_draft": len(errors) == 0,
