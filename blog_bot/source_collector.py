@@ -21,12 +21,29 @@ def _clean_title(title: str) -> str:
     return title
 
 
-def _verify_link(url: str) -> bool:
+def _verify_and_resolve_link(url: str) -> str:
     try:
-        r = requests.head(url, headers={"User-Agent": USER_AGENT}, timeout=5, allow_redirects=True)
-        return r.status_code < 400
+        r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=10, allow_redirects=True)
+        if "400. 오류가 발생했습니다" in r.text or "요청 형식이 잘못되어" in r.text:
+            return None
+            
+        import re
+        # Google News 중간 페이지에서 실제 URL 추출 시도
+        match = re.search(r'data-n-au="([^"]+)"', r.text)
+        if match:
+            return match.group(1)
+            
+        match = re.search(r'<a[^>]*href="([^"]+)"[^>]*>여기를 클릭', r.text)
+        if match:
+            return match.group(1)
+            
+        # 리다이렉트되어 실제 언론사 사이트로 넘어간 경우
+        if not r.url.startswith("https://news.google.com/"):
+            return r.url
+            
+        return url
     except Exception:
-        return False
+        return None
 
 def collect_google_news_sources(query: str, max_items: int = 6) -> List[Dict]:
     encoded = quote_plus(f"{query} when:30d")
@@ -49,18 +66,19 @@ def collect_google_news_sources(query: str, max_items: int = 6) -> List[Dict]:
             if not title or not link:
                 continue
 
-            key = (title, link)
+            # Verify and resolve the actual URL
+            resolved_link = _verify_and_resolve_link(link)
+            if not resolved_link:
+                continue
+                
+            key = (title, resolved_link)
             if key in seen:
                 continue
             seen.add(key)
-            
-            # Verify the link actually opens
-            if not _verify_link(link):
-                continue
 
             results.append({
                 "title": title,
-                "url": link,
+                "url": resolved_link,
                 "publisher": "Google News RSS",
                 "published_at": pub_date,
             })
