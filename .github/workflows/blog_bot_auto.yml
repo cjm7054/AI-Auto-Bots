@@ -36,7 +36,7 @@ jobs:
           # 카카오톡 연동 설정
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
-          # 자동 게시 관련 설정
-          BLOG_ALLOW_AUTO_PUBLISH: "true"
-          BLOG_PUBLISH_STATUS: "publish"
+          # 자동 게시 관련 설정 (임시저장 후 수동 검토)
+          BLOG_ALLOW_AUTO_PUBLISH: "false"
+          BLOG_PUBLISH_STATUS: "draft"
         run: python blog_bot/main.py
