@@ -32,6 +32,11 @@ def upload_to_blogger(title, markdown_content, is_draft=True):
         body = {"kind": "blogger#post", "title": title, "content": html_content}
 
         result = service.posts().insert(blogId=blog_id, body=body, isDraft=bool(is_draft)).execute()
+        if not is_draft:
+            try:
+                service.posts().publish(blogId=blog_id, postId=result['id']).execute()
+            except Exception as e:
+                print(f"[Blogger] 추가 발행 처리 중 에러: {e}")
         print(f"[Blogger] 업로드 성공! draft={is_draft} URL={result.get('url')}")
         return result
 
