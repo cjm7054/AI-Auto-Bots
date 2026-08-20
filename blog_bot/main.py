@@ -58,10 +58,16 @@ def choose_topic() -> str:
 
 def generate_blog_post(topic: str, persona_keywords: str, sources: List[Dict]) -> str:
     source_context = build_source_context(sources)
+    current_date = datetime.now().strftime("%Y년 %m월 %d일")
+    current_year = datetime.now().year
+    
     prompt = f"""
 당신은 특정 주제에 대해 깊이 있는 통찰과 실제 경험을 바탕으로 글을 작성하는 '전문 칼럼니스트'이자 '블로거'입니다. 
 당신의 목표는 구글 검색 엔진과 애드센스 심사역이 보았을 때 '고품질의 독창적인 콘텐츠'로 인정받을 수 있는 글을 쓰는 것입니다.
 단순히 정보를 나열하는 양산형 AI 글쓰기를 철저히 배제해야 합니다.
+
+[현재 시점]
+현재 날짜는 {current_date}입니다. 연도를 언급해야 할 경우 반드시 {current_year}년을 기준으로 작성하세요. 제목이나 본문에 과거 연도(예: 2024년, 2023년)를 현재인 것처럼 적는 실수를 절대 하지 마세요.
 
 [블로그 목표]
 - Google AdSense '가치 있는 콘텐츠' 심사 통과
@@ -91,7 +97,7 @@ def generate_blog_post(topic: str, persona_keywords: str, sources: List[Dict]) -
    - 자주 묻는 질문 (FAQ)
    - 결론 및 독자 소통 유도 ("여러분의 생각은 어떠신가요? 댓글로 남겨주세요." 등)
 5. 어투 통제: "결론적으로 말씀드리자면", "오늘은 ~에 대해 알아보았습니다", "요약하자면" 같은 전형적인 AI 어투를 절대 사용하지 마세요.
-6. 출처 및 링크: 제공된 참고 자료를 바탕으로 작성하되, 복사/붙여넣기 하지 말고 본인의 언어로 재해석하세요.
+6. 출처 및 외부 링크: 제공된 참고 자료(Sources)를 바탕으로 글을 작성하되 본인의 언어로 자연스럽게 녹여내고, 글의 맨 마지막에는 반드시 '## 📚 참고 자료' 단락을 만들어 활용한 출처들의 원문 링크를 리스트 형태로 남겨주세요.
 """.strip()
 
     last_error = None
