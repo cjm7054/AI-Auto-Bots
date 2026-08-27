@@ -50,7 +50,8 @@ def _verify_and_resolve_link(url: str) -> str:
         return url
 
 def collect_google_news_sources(query: str, max_items: int = 6) -> List[Dict]:
-    encoded = quote_plus(f"{query} when:30d")
+    # 최신 뉴스 위주로 수집하기 위해 30일에서 2일로 기간 축소
+    encoded = quote_plus(f"{query} when:2d")
     url = f"https://news.google.com/rss/search?q={encoded}&hl=ko&gl=KR&ceid=KR:ko"
 
     try:

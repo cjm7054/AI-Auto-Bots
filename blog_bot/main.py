@@ -51,9 +51,24 @@ def choose_topic() -> str:
         return manual
     topics = [x.strip() for x in os.getenv("BLOG_TOPICS", "").split(",") if x.strip()]
     if topics:
-        idx = datetime.now().day % len(topics)
-        return topics[idx]
-    return "인공지능 챗봇 최신 동향"
+        import random
+        return random.choice(topics)
+        
+    # 기본 주제를 다양하게 구성하여 매번 똑같은 글이 나오는 것을 방지
+    default_topics = [
+        "오픈AI 챗GPT 최신 업데이트 트렌드",
+        "생성형 AI의 업무 활용법과 사례",
+        "미드저니 등 AI 이미지 생성기 비교",
+        "구글 제미나이(Gemini) 활용 꿀팁",
+        "인공지능 코딩 어시스턴트 발전 동향",
+        "AI가 바꾸는 미래 직업과 일하는 방식",
+        "최신 인공지능 스타트업 투자 동향",
+        "유튜브 알고리즘과 AI 추천 시스템",
+        "노션 AI 등 생산성 툴 활용법",
+        "인공지능 저작권과 윤리적 쟁점"
+    ]
+    import random
+    return random.choice(default_topics)
 
 
 def generate_blog_post(topic: str, persona_keywords: str, sources: List[Dict]) -> str:
