@@ -44,10 +44,10 @@ def _verify_and_resolve_link(url: str) -> str:
         if match and is_valid_url(match.group(1)):
             return match.group(1)
             
-        # 진짜 언론사 주소를 못 찾으면 무조건 폐기
-        return None
+        # 진짜 언론사 주소를 못 찾더라도 구글 뉴스 원본 링크를 반환하여 누락 방지
+        return url
     except Exception:
-        return None
+        return url
 
 def collect_google_news_sources(query: str, max_items: int = 6) -> List[Dict]:
     encoded = quote_plus(f"{query} when:30d")
