@@ -1,10 +1,13 @@
 {
-  "token": "ya29.a0AdMD6Eh65Crp7RljyRaiDx2t51Lru1-fxGXSdNN5D3r7-FUW6s_XrSIB_UMycQXepcj9LS-AKBQu1c_cO-GJ5tVueuhAN2vpo58PWV-oo-er1qq4rq1HsYb108BAuTEr7UJyFtEpSMGZ-5fnBVfGG8gRQksZteKHOKd-BhhvxB7DrrhfH86zYt0FQbpnQYjua1kBbTQaCgYKAT8SARYSFQHGX2MiCsuweEaNqu-iwIPXPvE0nw0206",
-  "refresh_token": "1//0eIArEnxP9IUyCgYIARAAGA4SNwF-L9IrfB0x8zqX2OG2jB2suyYgdey-5QF1enZ2NMLaIO1NKts69xd9GSmPl8MTIRrOr7LscNM",
+  "token": "ya29.a0AdMD6EijhYGnsoTLDK4DEh57GRm_Uw4jIlWX_Td53lbFAFlojAlxf8Q71krGpWn06jg2TdCXZqEQI7gt6KlXsAaenmwIMUnaPKR-hsoDEE9avk6BMEDnp05ylH7worsf1XEgwkXqQRQxtPhHqx4q_mgMxrTsz58Igy9rcQOixjH2G4BlC96Dt6W9Vjso_4SOhlln9TAaCgYKAZUSARYSFQHGX2MieG6nx1vZ-xV_AjSSJkdiYA0206",
+  "refresh_token": "1//0e3TMf8vZp5hSCgYIARAAGA4SNwF-L9Ir3p00KiCzSRqE7Ow5jgOKXYtkJd4S-xplqeSBwwDoEiSca_QGyDl-KE1_BL4ubeiv-4E",
   "token_uri": "https://oauth2.googleapis.com/token",
   "client_id": "672643593975-k0um4442tcb5kinoa3fks5ok6meeh4ua.apps.googleusercontent.com",
   "client_secret": "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",
   "scopes": [
     "https://www.googleapis.com/auth/blogger"
-  ]
+  ],
+  "universe_domain": "googleapis.com",
+  "account": "",
+  "expiry": "2026-08-27T14:08:52Z"
 }
