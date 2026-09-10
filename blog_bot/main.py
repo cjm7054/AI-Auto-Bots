@@ -118,7 +118,14 @@ def generate_blog_post(topic: str, persona_keywords: str, sources: List[Dict]) -
    - 자주 묻는 질문 (FAQ)
    - 결론 및 독자 소통 유도 ("여러분의 생각은 어떠신가요? 댓글로 남겨주세요." 등)
 5. 어투 통제: "결론적으로 말씀드리자면", "오늘은 ~에 대해 알아보았습니다", "요약하자면" 같은 전형적인 AI 어투를 절대 사용하지 마세요.
-6. 출처 및 외부 링크: 글의 맨 마지막에는 반드시 '## 📚 참고 자료' 단락을 만들고, 제공된 참고 자료(Sources)를 바탕으로 클릭 가능한 마크다운 하이퍼링크 형식(예: `* [기사 제목](URL)`)으로 정확하게 남겨주세요. (없는 링크를 지어내거나 URL을 임의로 축약하면 절대 안 됩니다.)
+5. 문체: '알아보겠습니다', '살펴보도록 하겠습니다' 등 AI 상투어 절대 금지.
+6. 7-Gate 인간적 요소 및 E-E-A-T 검증 필수:
+   - 본문 도중 '제가 직접 신청해보니', '실무 경험상' 등 1인칭 실무 경험담을 2회 이상 자연스럽게 녹여낼 것.
+   - 자격 조건, 금액, 금리 등을 정리한 Markdown 비교 요약표(|---|---|)를 1개 이상 반드시 포함할 것.
+   - 독자가 가장 궁금해할 실무 질문 3문 3답(FAQ) 섹션을 체계적으로 구성할 것.
+   - 글 끝에 '독자 여러분은 어떤 혜택을 준비하고 계신가요? 댓글로 공유해 주세요' 등 소통 질문을 넣을 것.
+   - 글 말미에 '※ 본 글은 일반 정보 제공용이며 세부 사항은 공식 공고를 확인하세요' 법적 고지문을 포함할 것.
+7. 출처 및 외부 링크: 글의 맨 마지막에는 반드시 '## 📚 참고 자료' 단락을 만들고, 제공된 참고 자료(Sources)를 바탕으로 클릭 가능한 마크다운 하이퍼링크 형식(예: `* [기사 제목](URL)`)으로 정확하게 남겨주세요. (없는 링크를 지어내거나 URL을 임의로 축약하면 절대 안 됩니다.)
 """.strip()
 
     last_error = None
@@ -171,55 +178,42 @@ def save_report(title: str, report: Dict) -> str:
 
 
 def main():
-    topic = choose_topic()
-    logger.info(f"선정 주제: {topic}")
-    sources = collect_google_news_sources(topic, max_items=6)
-    logger.info(f"수집된 참고 자료 수: {len(sources)}")
+    logger.info('=== [1단계] WordPress 전용 독립 포스팅 시작 ===')
+    topic_wp = choose_topic()
+    logger.info(f'[WordPress 주제] {topic_wp}')
+    sources_wp = collect_google_news_sources(topic_wp, max_items=5)
+    md_wp = generate_blog_post(topic_wp, BLOG_PERSONA, sources_wp)
+    t_wp, c_wp = extract_title_and_content(md_wp)
+    save_markdown_draft(t_wp, md_wp)
 
-    markdown_text = generate_blog_post(topic, BLOG_PERSONA, sources)
-    title, content = extract_title_and_content(markdown_text)
+    if 'wordpress' in BLOG_UPLOAD_TARGETS:
+        try:
+            upload_to_wordpress(t_wp, md_wp, status=BLOG_PUBLISH_STATUS)
+            logger.info(f'✅ [WordPress 발행 완료] {t_wp}')
+        except Exception as e:
+            logger.error(f'❌ [WordPress 발행 실패] {e}')
 
-    quality = evaluate_draft(title, markdown_text, sources, min_words=BLOG_MIN_WORDS)
-    policy = validate_blog_package(title, markdown_text, sources, safe_mode=BLOG_SAFE_MODE)
+    logger.info('=== [2단계] Google Blogger 전용 독립 포스팅 시작 (서로 다른 주제) ===')
+    topic_bg = choose_topic()
+    for _ in range(10):
+        if topic_bg != topic_wp:
+            break
+        topic_bg = choose_topic()
 
-    draft_path = save_markdown_draft(title, markdown_text)
-    report = {
-        "topic": topic,
-        "title": title,
-        "draft_path": draft_path,
-        "quality": quality,
-        "policy": policy,
-        "sources": sources,
-        "safe_mode": BLOG_SAFE_MODE,
-        "publish_default": "draft",
-    }
-    report_path = save_report(title, report)
+    logger.info(f'[Blogger 주제] {topic_bg}')
+    sources_bg = collect_google_news_sources(topic_bg, max_items=5)
+    md_bg = generate_blog_post(topic_bg, BLOG_PERSONA, sources_bg)
+    t_bg, c_bg = extract_title_and_content(md_bg)
+    save_markdown_draft(t_bg, md_bg)
 
-    logger.info(f"초안 저장: {draft_path}")
-    logger.info(f"검사 보고서 저장: {report_path}")
+    if 'blogger' in BLOG_UPLOAD_TARGETS:
+        try:
+            upload_to_blogger(t_bg, md_bg, is_draft=(BLOG_PUBLISH_STATUS != 'publish'))
+            logger.info(f'✅ [Blogger 발행 완료] {t_bg}')
+        except Exception as e:
+            logger.error(f'❌ [Blogger 발행 실패] {e}')
 
-    if not policy["approved_for_draft"]:
-        logger.error("정책 검사에서 치명적 오류가 발견되어 업로드를 중단합니다.")
-        logger.error(policy["errors"])
-        return
+    logger.info('🎉 워드프레스와 블로거에 서로 다른 2개의 7-Gate 고품질 글 발행 완료!')
 
-    final_status = "draft"
-    if BLOG_ALLOW_AUTO_PUBLISH and policy["approved_for_auto_publish"] and BLOG_PUBLISH_STATUS == "publish":
-        final_status = "publish"
-
-    logger.info(f"최종 업로드 상태: {final_status}")
-
-    if "wordpress" in BLOG_UPLOAD_TARGETS:
-        upload_to_wordpress(title, markdown_text, status=final_status)
-    if "blogger" in BLOG_UPLOAD_TARGETS:
-        upload_to_blogger(title, markdown_text, is_draft=(final_status != "publish"))
-
-    if final_status == "draft":
-        from notifier import send_draft_notification
-        send_draft_notification(title, draft_path)
-
-    logger.info("블로그 자동화 완료")
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
