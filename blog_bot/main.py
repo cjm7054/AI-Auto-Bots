@@ -37,7 +37,7 @@ env_models = os.getenv("GEMINI_MODELS", "").strip()
 MODELS_TO_TRY = [m.strip() for m in env_models.split(",") if m.strip()] if env_models else DEFAULT_MODELS
 
 BLOG_SAFE_MODE = os.getenv("BLOG_SAFE_MODE", "adsense_approval").strip()
-BLOG_SITE_NICHE = os.getenv("BLOG_SITE_NICHE", "실무형 정보 블로그").strip()
+BLOG_SITE_NICHE = os.getenv("BLOG_SITE_NICHE", "경제, 재테크, 정부지원금, 실무 생활정보 전문 블로그").strip()
 BLOG_PERSONA = os.getenv("BLOG_PERSONA", "신뢰감 있고 실무적인 톤").strip()
 BLOG_MIN_WORDS = int(os.getenv("BLOG_MIN_WORDS", "1400"))
 BLOG_ALLOW_AUTO_PUBLISH = os.getenv("BLOG_ALLOW_AUTO_PUBLISH", "false").lower() == "true"
@@ -56,16 +56,22 @@ def choose_topic() -> str:
         
     # 기본 주제를 다양하게 구성하여 매번 똑같은 글이 나오는 것을 방지
     default_topics = [
-        "오픈AI 챗GPT 최신 업데이트 트렌드",
-        "생성형 AI의 업무 활용법과 사례",
-        "미드저니 등 AI 이미지 생성기 비교",
-        "구글 제미나이(Gemini) 활용 꿀팁",
-        "인공지능 코딩 어시스턴트 발전 동향",
-        "AI가 바꾸는 미래 직업과 일하는 방식",
-        "최신 인공지능 스타트업 투자 동향",
-        "유튜브 알고리즘과 AI 추천 시스템",
-        "노션 AI 등 생산성 툴 활용법",
-        "인공지능 저작권과 윤리적 쟁점"
+        "2026 청년도약계좌 신청 조건 및 정부 기여금 매칭 혜택 총정리",
+        "근로장려금 정기 반기 신청 자격 및 소득 재산 기준 계산법",
+        "국민내일배움카드 발급 방법 및 훈련장려금 500만원 지원 한도 활용 가이드",
+        "신생아 특례대출 디딤돌 버팀목 금리 및 부부합산 소득 조건 완벽 비교",
+        "탄소중립포인트 실천 다회용기 텀블러 전자영수증으로 연간 7만원 환급받는 법",
+        "소상공인 정책자금 희망플러스 특례보증 대출 조건 및 신청 절차",
+        "ISA 개인종합자산관리계좌 일반형 서민형 차이와 비과세 한도 극대화 꿀팁",
+        "연말정산 연금저축 vs IRP 차이점과 세액공제 최대 900만원 채우는 최적 비율",
+        "파킹통장 금리 비교 제1금융권 토스 카뱅 vs 저축은행 파킹통장 장단점",
+        "개인사업자 프리랜서 노란우산공제 소득공제 혜택과 복리 이자 안전성 분석",
+        "신용점수 900점 올리는 5가지 실전 습관과 신용카드 한도 대비 사용 비율",
+        "숨은 내 돈 찾기 어카운트인포와 잠자는 카드포인트 계좌 입금 현금화 방법",
+        "실손의료보험 4세대 청구 서류와 도수치료 비급여 주사 보상 제외 기준",
+        "자동차 채권 미환급금 조회 및 계좌 이체 신청 방법 5년 지난 환급금 찾기",
+        "전월세 계약 전 등기부등본 보는 법 갑구 을구 근저당 확인과 깡통전세 예방법",
+        "해외여행 트래블로그 vs 트래블월렛 환전 수수료 및 현지 ATM 출금 비교"
     ]
     import random
     return random.choice(default_topics)
