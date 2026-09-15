@@ -42,3 +42,29 @@ def upload_to_wordpress(title, markdown_content, status="draft", categories=None
     except Exception as e:
         print(f"[WordPress] 업로드 중 에러 발생: {e}")
         return False
+
+
+def get_recent_wordpress_titles(per_page=30):
+    wp_url = os.getenv("WP_SITE_URL", os.getenv("WP_URL"))
+    wp_username = os.getenv("WP_USERNAME")
+    wp_app_password = os.getenv("WP_APP_PASSWORD")
+
+    if not wp_url or not wp_username or not wp_app_password:
+        return []
+
+    api_url = f"{wp_url.rstrip('/')}/wp-json/wp/v2/posts"
+    try:
+        response = requests.get(
+            api_url,
+            auth=HTTPBasicAuth(wp_username, wp_app_password),
+            params={"per_page": per_page, "_fields": "title"},
+            timeout=15
+        )
+        if response.status_code == 200:
+            posts = response.json()
+            return [p.get("title", {}).get("rendered", "").strip() for p in posts if p.get("title")]
+        return []
+    except Exception as e:
+        print(f"[WordPress] 최근 글 목록 조회 실패: {e}")
+        return []
+

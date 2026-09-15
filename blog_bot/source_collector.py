@@ -106,3 +106,48 @@ def build_source_context(sources: List[Dict]) -> str:
     for idx, s in enumerate(sources, start=1):
         lines.append(f"{idx}. {s['title']} | {s['url']}")
     return "\n".join(lines)
+
+
+def fetch_trending_topics(max_topics: int = 10) -> List[str]:
+    """구글 트렌드 및 최신 경제/생활/금융 뉴스 RSS에서 실시간 트렌드 키워드를 동적으로 추출"""
+    trending_candidates = []
+
+    # 1. Google Trends Daily RSS (한국)
+    try:
+        trends_url = "https://trends.google.co.kr/trends/trendingsearches/daily/rss?geo=KR"
+        resp = requests.get(trends_url, headers={"User-Agent": USER_AGENT}, timeout=10)
+        if resp.status_code == 200:
+            root = ET.fromstring(resp.text)
+            for item in root.findall(".//item"):
+                title = item.findtext("title", default="").strip()
+                if title and len(title) >= 2:
+                    trending_candidates.append(title)
+    except Exception as e:
+        logger.warning(f"Google Trends 수집 실패: {e}")
+
+    # 2. Google News 경제 토픽 RSS (비즈니스/금융)
+    try:
+        economy_news_url = "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko"
+        resp = requests.get(economy_news_url, headers={"User-Agent": USER_AGENT}, timeout=10)
+        if resp.status_code == 200:
+            root = ET.fromstring(resp.text)
+            for item in root.findall(".//item")[:15]:
+                title = item.findtext("title", default="").strip()
+                # 언론사명 제거 (예: "제목 - 연합뉴스" -> "제목")
+                clean = re.sub(r"\s*-\s*[^-]+$", "", title).strip()
+                if clean and len(clean) >= 6:
+                    trending_candidates.append(clean)
+    except Exception as e:
+        logger.warning(f"Google News 경제 토픽 수집 실패: {e}")
+
+    seen = set()
+    unique_topics = []
+    for t in trending_candidates:
+        if t not in seen:
+            seen.add(t)
+            unique_topics.append(t)
+        if len(unique_topics) >= max_topics:
+            break
+
+    return unique_topics
+

@@ -38,3 +38,31 @@ def upload_to_blogger(title, markdown_content, is_draft=True):
     except Exception as e:
         print(f"[Blogger] 업로드 중 에러 발생: {e}")
         return False
+
+
+def get_recent_blogger_titles(max_results=30):
+    token_file = os.path.join(os.path.dirname(__file__), "blogger_token.json")
+    blog_id_env = os.getenv("BLOGGER_BLOG_ID", "").strip()
+
+    if not os.path.exists(token_file):
+        return []
+
+    try:
+        creds = Credentials.from_authorized_user_file(token_file)
+        service = build("blogger", "v3", credentials=creds)
+
+        if blog_id_env:
+            blog_id = blog_id_env
+        else:
+            blogs = service.blogs().listByUser(userId="self").execute()
+            if not blogs.get("items"):
+                return []
+            blog_id = blogs["items"][0]["id"]
+
+        posts = service.posts().list(blogId=blog_id, maxResults=max_results, fetchBodies=False).execute()
+        items = posts.get("items", [])
+        return [item.get("title", "").strip() for item in items if item.get("title")]
+    except Exception as e:
+        print(f"[Blogger] 최근 글 목록 조회 실패: {e}")
+        return []
+

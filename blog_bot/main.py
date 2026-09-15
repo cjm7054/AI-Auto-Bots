@@ -9,11 +9,11 @@ from typing import List, Dict, Tuple
 from dotenv import load_dotenv
 from google import genai
 
-from source_collector import collect_google_news_sources, build_source_context
+from source_collector import collect_google_news_sources, build_source_context, fetch_trending_topics
 from quality_checker import evaluate_draft
 from policy_guard import validate_blog_package
-from wordpress_uploader import upload_to_wordpress
-from blogger_uploader import upload_to_blogger
+from wordpress_uploader import upload_to_wordpress, get_recent_wordpress_titles
+from blogger_uploader import upload_to_blogger, get_recent_blogger_titles
 
 load_dotenv()
 
@@ -45,16 +45,80 @@ BLOG_UPLOAD_TARGETS = [x.strip() for x in os.getenv("BLOG_UPLOAD_TARGETS", "word
 BLOG_PUBLISH_STATUS = os.getenv("BLOG_PUBLISH_STATUS", "draft").strip()
 
 
-def choose_topic() -> str:
+def get_existing_published_titles() -> List[str]:
+    """블로그(Blogger, WordPress) 및 로컬 초안 파일에서 이미 작성된 글들의 제목을 수집"""
+    existing_titles = []
+
+    # 1. Blogger 최근 글 제목
+    try:
+        bg_titles = get_recent_blogger_titles(max_results=30)
+        existing_titles.extend(bg_titles)
+    except Exception:
+        pass
+
+    # 2. WordPress 최근 글 제목
+    try:
+        wp_titles = get_recent_wordpress_titles(per_page=30)
+        existing_titles.extend(wp_titles)
+    except Exception:
+        pass
+
+    # 3. 로컬 drafts 디렉토리 파일명 확인
+    try:
+        if DRAFT_DIR.exists():
+            for f in DRAFT_DIR.glob("*.md"):
+                clean_name = re.sub(r"^\d{8}_\d{6}_", "", f.stem).replace("_", " ")
+                existing_titles.append(clean_name)
+    except Exception:
+        pass
+
+    return existing_titles
+
+
+def is_topic_too_similar(candidate: str, existing_titles: List[str]) -> bool:
+    """후보 주제가 이미 발행된 글 제목들과 핵심 키워드상 유사한지 검사 (중복 방지)"""
+    candidate_tokens = set(re.findall(r"[A-Za-z0-9가-힣]{2,}", candidate))
+    # '2026', '가이드', '정리', '비교', '신청' 등 일반 단어 제외
+    common_stops = {"2026", "2025", "2024", "가이드", "정리", "비교", "신청", "방법", "조건", "혜택", "총정리", "알아보기", "완벽"}
+    meaningful_tokens = candidate_tokens - common_stops
+
+    if not meaningful_tokens:
+        return False
+
+    for title in existing_titles:
+        title_tokens = set(re.findall(r"[A-Za-z0-9가-힣]{2,}", title)) - common_stops
+        shared = meaningful_tokens & title_tokens
+        # 핵심 키워드가 2개 이상 겹치거나, 핵심 키워드의 60% 이상이 겹치면 유사 주제로 판단
+        if len(shared) >= 2 or (len(meaningful_tokens) > 0 and len(shared) / len(meaningful_tokens) >= 0.6):
+            return True
+
+    return False
+
+
+def choose_topic(exclude_topics: List[str] = None, existing_titles: List[str] = None) -> str:
+    """중복 없이 새로운 주제를 선정 (최신 트렌드/뉴스 우선, 없으면 기본 풀에서 중복 배제)"""
+    if exclude_topics is None:
+        exclude_topics = []
+    if existing_titles is None:
+        existing_titles = get_existing_published_titles()
+
+    all_excluded = set(exclude_topics)
+
     manual = os.getenv("BLOG_TOPIC", "").strip()
-    if manual:
+    if manual and manual not in all_excluded:
         return manual
-    topics = [x.strip() for x in os.getenv("BLOG_TOPICS", "").split(",") if x.strip()]
-    if topics:
-        import random
-        return random.choice(topics)
-        
-    # 기본 주제를 다양하게 구성하여 매번 똑같은 글이 나오는 것을 방지
+
+    # 1. 실시간 트렌드 및 최신 경제 뉴스 RSS에서 수집
+    logger.info("실시간 구글 트렌드 및 최신 경제 뉴스 기반 주제 탐색 중...")
+    trending_candidates = fetch_trending_topics(max_topics=15)
+    for t in trending_candidates:
+        if t in all_excluded:
+            continue
+        if not is_topic_too_similar(t, existing_titles):
+            logger.info(f"선정된 실시간 트렌드 주제: {t}")
+            return t
+
+    # 2. 고정 주제 풀 (총 30개 이상으로 대폭 확장)
     default_topics = [
         "2026 청년도약계좌 신청 조건 및 정부 기여금 매칭 혜택 총정리",
         "근로장려금 정기 반기 신청 자격 및 소득 재산 기준 계산법",
@@ -71,10 +135,36 @@ def choose_topic() -> str:
         "실손의료보험 4세대 청구 서류와 도수치료 비급여 주사 보상 제외 기준",
         "자동차 채권 미환급금 조회 및 계좌 이체 신청 방법 5년 지난 환급금 찾기",
         "전월세 계약 전 등기부등본 보는 법 갑구 을구 근저당 확인과 깡통전세 예방법",
-        "해외여행 트래블로그 vs 트래블월렛 환전 수수료 및 현지 ATM 출금 비교"
+        "해외여행 트래블로그 vs 트래블월렛 환전 수수료 및 현지 ATM 출금 비교",
+        "2026년 주택연금 가입 조건과 수령액 계산법 내 집 연금 장단점",
+        "국민연금 조기노령연금 vs 연기연금 수령 시기별 득실 분석",
+        "건강보험료 피부양자 자격 유지 조건 및 금융소득 2천만원 초과 탈락 기준",
+        "소액 투자자를 위한 미국 배당 다우존스 SCHD vs 국내 배당 ETF 분배금 비교",
+        "청년월세 특별지원 신청 대상 소득 기준 및 월 최대 20만원 지원 가이드",
+        "햇살론 유스 신청 자격 및 청년 긴급 생계비 보증 대출 심사 팁",
+        "퇴직연금 DC형 DB형 차이점 및 IRP 계좌 이체 시 퇴직소득세 절세 전략",
+        "예적금 만기 후 풍차돌리기 재테크 실전 전략과 복리 효과 극대화",
+        "상속세 및 증여세 면제 한도와 10년 주기 합법적 사전 증여 꿀팁"
     ]
+
     import random
+    random.shuffle(default_topics)
+
+    # 최근 작성된 글들과 겹치지 않는 주제 우선 선택
+    for topic in default_topics:
+        if topic in all_excluded:
+            continue
+        if not is_topic_too_similar(topic, existing_titles):
+            logger.info(f"선정된 기본 풀 주제 (기존 글과 중복 없음): {topic}")
+            return topic
+
+    # 만약 모든 주제가 겹친다면, 최소한 현재 실행 세션에서 쓰지 않은 것 중 선택
+    for topic in default_topics:
+        if topic not in all_excluded:
+            return topic
+
     return random.choice(default_topics)
+
 
 
 def generate_blog_post(topic: str, persona_keywords: str, sources: List[Dict]) -> str:
@@ -178,8 +268,11 @@ def save_report(title: str, report: Dict) -> str:
 
 
 def main():
+    existing_titles = get_existing_published_titles()
+    logger.info(f"기존 발행 및 초안 글 {len(existing_titles)}개 감지 (중복 필터링 적용)")
+
     logger.info('=== [1단계] WordPress 전용 독립 포스팅 시작 ===')
-    topic_wp = choose_topic()
+    topic_wp = choose_topic(exclude_topics=[], existing_titles=existing_titles)
     logger.info(f'[WordPress 주제] {topic_wp}')
     sources_wp = collect_google_news_sources(topic_wp, max_items=5)
     md_wp = generate_blog_post(topic_wp, BLOG_PERSONA, sources_wp)
@@ -194,11 +287,9 @@ def main():
             logger.error(f'❌ [WordPress 발행 실패] {e}')
 
     logger.info('=== [2단계] Google Blogger 전용 독립 포스팅 시작 (서로 다른 주제) ===')
-    topic_bg = choose_topic()
-    for _ in range(10):
-        if topic_bg != topic_wp:
-            break
-        topic_bg = choose_topic()
+    # WordPress에서 쓴 주제 및 생성된 제목을 제외 목록과 기존 목록에 추가
+    existing_titles_bg = existing_titles + [topic_wp, t_wp]
+    topic_bg = choose_topic(exclude_topics=[topic_wp], existing_titles=existing_titles_bg)
 
     logger.info(f'[Blogger 주제] {topic_bg}')
     sources_bg = collect_google_news_sources(topic_bg, max_items=5)
