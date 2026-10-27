@@ -44,9 +44,12 @@ def validate_blog_package(title: str, content: str, sources: List[Dict], safe_mo
     ymyl_hits = _contains_any(title + "\n" + content, YMYL_PATTERNS)
     if ymyl_hits:
         notes.append(f"민감 주제(YMYL) 가능성이 있습니다: {ymyl_hits}")
-        has_disclaimer = any(re.search(p, content, flags=re.IGNORECASE) for p in REQUIRED_DISCLAIMER_PATTERNS)
-        if not has_disclaimer:
-            warnings.append("YMYL 성격의 주제인데 일반 정보 제공 및 전문가 확인 유도 문구가 부족합니다.")
+        if safe_mode == "adsense_approval":
+            errors.append(f"애드센스 승인 심사 모드에서는 금융/투자/세무/의료 YMYL 주제 작성이 차단됩니다: {ymyl_hits}")
+        else:
+            has_disclaimer = any(re.search(p, content, flags=re.IGNORECASE) for p in REQUIRED_DISCLAIMER_PATTERNS)
+            if not has_disclaimer:
+                warnings.append("YMYL 성격의 주제인데 일반 정보 제공 및 전문가 확인 유도 문구가 부족합니다.")
 
     if len(sources) < 3:
         warnings.append("참고 자료가 3개 미만입니다 (품질 저하 우려).")

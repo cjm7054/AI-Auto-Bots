@@ -125,10 +125,10 @@ def fetch_trending_topics(max_topics: int = 10) -> List[str]:
     except Exception as e:
         logger.warning(f"Google Trends 수집 실패: {e}")
 
-    # 2. Google News 경제 토픽 RSS (비즈니스/금융)
+    # 2. Google News IT/과학/기술 토픽 RSS
     try:
-        economy_news_url = "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko"
-        resp = requests.get(economy_news_url, headers={"User-Agent": USER_AGENT}, timeout=10)
+        tech_news_url = "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ko&gl=KR&ceid=KR:ko"
+        resp = requests.get(tech_news_url, headers={"User-Agent": USER_AGENT}, timeout=10)
         if resp.status_code == 200:
             root = ET.fromstring(resp.text)
             for item in root.findall(".//item")[:15]:
@@ -138,7 +138,7 @@ def fetch_trending_topics(max_topics: int = 10) -> List[str]:
                 if clean and len(clean) >= 6:
                     trending_candidates.append(clean)
     except Exception as e:
-        logger.warning(f"Google News 경제 토픽 수집 실패: {e}")
+        logger.warning(f"Google News IT/기술 토픽 수집 실패: {e}")
 
     seen = set()
     unique_topics = []

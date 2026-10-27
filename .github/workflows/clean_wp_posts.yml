@@ -1,0 +1,34 @@
+name: Clean Posts to Draft and Publish New Guides
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'blog_bot/clean_and_publish.py'
+      - '.github/workflows/clean_wp_posts.yml'
+  workflow_dispatch:
+
+jobs:
+  clean-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests markdown
+
+      - name: Run Clean and Publish
+        env:
+          WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
+          WP_URL: ${{ secrets.WP_URL }}
+          WP_USERNAME: ${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: python blog_bot/clean_and_publish.py
