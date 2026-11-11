@@ -41,34 +41,41 @@ BLOG_SITE_NICHE = os.getenv("BLOG_SITE_NICHE", "IT·소프트웨어 실무 활�
 BLOG_PERSONA = os.getenv("BLOG_PERSONA", "친절하고 실무적인 IT/테크 가이드 톤").strip()
 BLOG_MIN_WORDS = int(os.getenv("BLOG_MIN_WORDS", "1400"))
 BLOG_ALLOW_AUTO_PUBLISH = os.getenv("BLOG_ALLOW_AUTO_PUBLISH", "false").lower() == "true"
-BLOG_UPLOAD_TARGETS = [x.strip() for x in os.getenv("BLOG_UPLOAD_TARGETS", "wordpress,blogger").split(",") if x.strip()]
+BLOG_UPLOAD_TARGETS = [x.strip() for x in os.getenv("BLOG_UPLOAD_TARGETS", "wordpress").split(",") if x.strip()]
 BLOG_PUBLISH_STATUS = os.getenv("BLOG_PUBLISH_STATUS", "draft").strip()
 
 
 def get_existing_published_titles() -> List[str]:
-    """블로그(Blogger, WordPress) 및 로컬 초안 파일에서 이미 작성된 글들의 제목을 수집"""
+    """블로그(WordPress 등) 및 로컬 초안 파일에서 이미 작성된 글들의 제목을 수집"""
     existing_titles = []
 
-    # 1. Blogger 최근 글 제목
-    try:
-        bg_titles = get_recent_blogger_titles(max_results=30)
-        existing_titles.extend(bg_titles)
-    except Exception:
-        pass
+    # 1. Blogger 최근 글 제목 (blogger가 타겟에 포함된 경우에만 조회)
+    if "blogger" in BLOG_UPLOAD_TARGETS:
+        try:
+            bg_titles = get_recent_blogger_titles(max_results=30)
+            existing_titles.extend(bg_titles)
+        except Exception:
+            pass
 
     # 2. WordPress 최근 글 제목
     try:
-        wp_titles = get_recent_wordpress_titles(per_page=30)
+        wp_titles = get_recent_wordpress_titles(per_page=50)
         existing_titles.extend(wp_titles)
     except Exception:
         pass
 
-    # 3. 로컬 drafts 디렉토리 파일명 확인
+    # 3. 로컬 drafts 디렉토리 파일명 및 첫 줄 제목 확인
     try:
         if DRAFT_DIR.exists():
             for f in DRAFT_DIR.glob("*.md"):
-                clean_name = re.sub(r"^\d{8}_\d{6}_", "", f.stem).replace("_", " ")
+                clean_name = re.sub(r"^\d{8}(?:_\d{6})?_", "", f.stem).replace("_", " ")
                 existing_titles.append(clean_name)
+                try:
+                    first_line = f.read_text(encoding="utf-8").splitlines()[0].lstrip("#").strip()
+                    if first_line:
+                        existing_titles.append(first_line)
+                except Exception:
+                    pass
     except Exception:
         pass
 
@@ -94,7 +101,7 @@ def is_topic_too_similar(candidate: str, existing_titles: List[str]) -> bool:
 
 
 def choose_topic(exclude_topics: List[str] = None, existing_titles: List[str] = None) -> str:
-    """중복 없이 새로운 주제를 선정 (IT/테크 트렌드 우선, 없으면 에버그린 IT 실무 가이드 풀에서 중복 배제)"""
+    """중복 없이 새로운 주제를 선정 (애드센스 승인 보증용 에버그린 IT 실무 가이드 풀 최우선, 소진 시에만 IT 트렌드 활용)"""
     if exclude_topics is None:
         exclude_topics = []
     if existing_titles is None:
@@ -106,17 +113,7 @@ def choose_topic(exclude_topics: List[str] = None, existing_titles: List[str] = 
     if manual and manual not in all_excluded:
         return manual
 
-    # 1. 실시간 IT/기술 트렌드 RSS에서 수집
-    logger.info("실시간 구글 트렌드 및 최신 IT/기술 뉴스 기반 주제 탐색 중...")
-    trending_candidates = fetch_trending_topics(max_topics=15)
-    for t in trending_candidates:
-        if t in all_excluded:
-            continue
-        if not is_topic_too_similar(t, existing_titles):
-            logger.info(f"선정된 실시간 트렌드 주제: {t}")
-            return t
-
-    # 2. 애드센스 승인 보증용 에버그린 IT/소프트웨어 실무 가이드 풀 (Non-YMYL 고품질 가이드)
+    # 1. 애드센스 승인 보증용 에버그린 IT/소프트웨어 실무 가이드 풀 (Non-YMYL 고품질 가이드 최우선)
     default_topics = [
         "윈도우 11 정품 인증 오류 코드 0x803F7001 원인 및 단계별 완벽 해결 방법",
         "구글 크롬 브라우저 속도 느려짐 현상 해결하는 7가지 메모리 최적화 설정법",
@@ -147,7 +144,12 @@ def choose_topic(exclude_topics: List[str] = None, existing_titles: List[str] = 
         "아이폰 화면 녹화 소리 안 나올 때 마이크 켜는 법 및 고화질 저장 설정",
         "컴퓨터 인터넷 연결 없음 DNS 서버가 응답하지 않습니다 해결 가이드",
         "크롬 팝업 차단 해제 및 특정 사이트만 허용하는 세부 권한 설정법",
-        "윈도우 11 임시 파일 및 캐시 삭제로 C드라이브 용량 확보하는 팁"
+        "윈도우 11 임시 파일 및 캐시 삭제로 C드라이브 용량 확보하는 팁",
+        "엑셀 피벗 테이블 만들기 기초부터 실무 매출 데이터 요약까지 단계별 가이드",
+        "파워포인트(PPT) 글꼴 포함 저장 방법 다른 컴퓨터에서 폰트 깨짐 완벽 방지",
+        "윈도우 11 블루투스 이어폰 연결 안 됨 및 소리 끊김 현상 해결 방법",
+        "구글 설문지(Google Forms) 만들기 및 응답 결과 스프레드시트 자동 연동법",
+        "듀얼 모니터 주 모니터 변경 및 화면 확장·복제 해상도 맞춤 설정 가이드",
     ]
 
     import random
@@ -157,8 +159,18 @@ def choose_topic(exclude_topics: List[str] = None, existing_titles: List[str] = 
         if topic in all_excluded:
             continue
         if not is_topic_too_similar(topic, existing_titles):
-            logger.info(f"선정된 기본 풀 주제 (기존 글과 중복 없음): {topic}")
+            logger.info(f"선정된 에버그린 IT 가이드 주제 (기존 글과 중복 없음): {topic}")
             return topic
+
+    # 2. 에버그린 풀이 모두 소진된 경우에만 실시간 IT/기술 트렌드 RSS에서 수집
+    logger.info("실시간 구글 트렌드 및 최신 IT/기술 뉴스 기반 주제 탐색 중...")
+    trending_candidates = fetch_trending_topics(max_topics=15)
+    for t in trending_candidates:
+        if t in all_excluded:
+            continue
+        if not is_topic_too_similar(t, existing_titles):
+            logger.info(f"선정된 실시간 트렌드 주제: {t}")
+            return t
 
     for topic in default_topics:
         if topic not in all_excluded:
@@ -269,41 +281,46 @@ def save_report(title: str, report: Dict) -> str:
 def main():
     existing_titles = get_existing_published_titles()
     logger.info(f"기존 발행 및 초안 글 {len(existing_titles)}개 감지 (중복 필터링 적용)")
+    logger.info(f"활성화된 업로드 타겟: {BLOG_UPLOAD_TARGETS} (구글 블로그 자동 발행 비활성화)")
 
-    logger.info('=== [1단계] WordPress 전용 독립 포스팅 시작 ===')
-    topic_wp = choose_topic(exclude_topics=[], existing_titles=existing_titles)
-    logger.info(f'[WordPress 주제] {topic_wp}')
-    sources_wp = collect_google_news_sources(topic_wp, max_items=5)
-    md_wp = generate_blog_post(topic_wp, BLOG_PERSONA, sources_wp)
-    t_wp, c_wp = extract_title_and_content(md_wp)
-    save_markdown_draft(t_wp, md_wp)
+    topic_wp = None
+    t_wp = None
 
     if 'wordpress' in BLOG_UPLOAD_TARGETS:
-        try:
-            upload_to_wordpress(t_wp, md_wp, status=BLOG_PUBLISH_STATUS)
+        logger.info('=== [WordPress 전용 포스팅 시작] ===')
+        topic_wp = choose_topic(exclude_topics=[], existing_titles=existing_titles)
+        logger.info(f'[WordPress 주제] {topic_wp}')
+        sources_wp = collect_google_news_sources(topic_wp, max_items=5)
+        md_wp = generate_blog_post(topic_wp, BLOG_PERSONA, sources_wp)
+        t_wp, c_wp = extract_title_and_content(md_wp)
+        save_markdown_draft(t_wp, md_wp)
+
+        wp_res = upload_to_wordpress(t_wp, md_wp, status=BLOG_PUBLISH_STATUS)
+        if wp_res:
             logger.info(f'✅ [WordPress 발행 완료] {t_wp}')
-        except Exception as e:
-            logger.error(f'❌ [WordPress 발행 실패] {e}')
-
-    logger.info('=== [2단계] Google Blogger 전용 독립 포스팅 시작 (서로 다른 주제) ===')
-    # WordPress에서 쓴 주제 및 생성된 제목을 제외 목록과 기존 목록에 추가
-    existing_titles_bg = existing_titles + [topic_wp, t_wp]
-    topic_bg = choose_topic(exclude_topics=[topic_wp], existing_titles=existing_titles_bg)
-
-    logger.info(f'[Blogger 주제] {topic_bg}')
-    sources_bg = collect_google_news_sources(topic_bg, max_items=5)
-    md_bg = generate_blog_post(topic_bg, BLOG_PERSONA, sources_bg)
-    t_bg, c_bg = extract_title_and_content(md_bg)
-    save_markdown_draft(t_bg, md_bg)
+        else:
+            logger.error(f'❌ [WordPress 발행 실패] {t_wp}')
+            raise RuntimeError("WordPress 업로드에 실패했습니다. 위 [WordPress] 로그를 확인하세요.")
 
     if 'blogger' in BLOG_UPLOAD_TARGETS:
-        try:
-            upload_to_blogger(t_bg, md_bg, is_draft=(BLOG_PUBLISH_STATUS != 'publish'))
-            logger.info(f'✅ [Blogger 발행 완료] {t_bg}')
-        except Exception as e:
-            logger.error(f'❌ [Blogger 발행 실패] {e}')
+        logger.info('=== [Google Blogger 전용 독립 포스팅 시작] ===')
+        existing_titles_bg = existing_titles + ([topic_wp, t_wp] if topic_wp else [])
+        exclude_bg = [topic_wp] if topic_wp else []
+        topic_bg = choose_topic(exclude_topics=exclude_bg, existing_titles=existing_titles_bg)
 
-    logger.info('🎉 워드프레스와 블로거에 서로 다른 2개의 7-Gate 고품질 글 발행 완료!')
+        logger.info(f'[Blogger 주제] {topic_bg}')
+        sources_bg = collect_google_news_sources(topic_bg, max_items=5)
+        md_bg = generate_blog_post(topic_bg, BLOG_PERSONA, sources_bg)
+        t_bg, c_bg = extract_title_and_content(md_bg)
+        save_markdown_draft(t_bg, md_bg)
+
+        bg_res = upload_to_blogger(t_bg, md_bg, is_draft=(BLOG_PUBLISH_STATUS != 'publish'))
+        if bg_res:
+            logger.info(f'✅ [Blogger 발행 완료] {t_bg}')
+        else:
+            logger.error(f'❌ [Blogger 발행 실패] {t_bg}')
+
+    logger.info('🎉 설정된 블로그 타겟에 고품질 글 발행 완료!')
 
 if __name__ == '__main__':
     main()
