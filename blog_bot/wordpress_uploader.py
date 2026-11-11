@@ -20,7 +20,9 @@ DEFAULT_HEADERS = {
 
 def _get_wp_config():
     wp_url = (os.getenv("WP_SITE_URL") or os.getenv("WP_URL") or "https://insightlab365.com").strip().rstrip("/")
-    wp_username = (os.getenv("WP_USERNAME") or "").strip()
+    if wp_url.startswith("http://"):
+        wp_url = "https://" + wp_url[len("http://"):]
+    wp_username = (os.getenv("WP_USERNAME") or "cjm7054").strip()
     wp_app_password = (os.getenv("WP_APP_PASSWORD") or "").strip()
     return wp_url, wp_username, wp_app_password
 
@@ -32,7 +34,13 @@ def upload_to_wordpress(title, markdown_content, status="draft", categories=None
         print("[WordPress] 인증 정보(.env)가 부족합니다. 업로드를 건너뜁니다.", flush=True)
         return False
 
-    html_content = markdown.markdown(markdown_content, extensions=["extra", "sane_lists"])
+    lines = markdown_content.strip().split("\n")
+    if lines and lines[0].strip().startswith("#"):
+        markdown_body = "\n".join(lines[1:]).strip()
+    else:
+        markdown_body = markdown_content.strip()
+
+    html_content = markdown.markdown(markdown_body, extensions=["extra", "sane_lists"])
 
     # 기본 카테고리: IT 실무 팁 (ID: 119)
     if categories is None:
@@ -67,13 +75,14 @@ def upload_to_wordpress(title, markdown_content, status="draft", categories=None
                 print(f"[WordPress] 업로드 성공! status={body.get('status')} URL={body.get('link')}", flush=True)
                 return body
             else:
+                snippet = response.text[:160].replace("\n", " ").replace("\r", " ")
                 print(
-                    f"[WordPress] 엔드포인트 응답 비정상 ({api_url}): status={response.status_code}, "
-                    f"len={len(response.text)}, body={response.text[:200]!r}",
+                    f"::error title=WP_DIAG::url={api_url} status={response.status_code} "
+                    f"len={len(response.text)} server={response.headers.get('Server')} body={snippet!r}",
                     flush=True,
                 )
         except Exception as e:
-            print(f"[WordPress] 업로드 중 에러 발생 ({api_url}): {e}", flush=True)
+            print(f"::error title=WP_EXC::url={api_url} err={e}", flush=True)
 
     return False
 

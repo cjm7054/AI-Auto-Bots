@@ -8,6 +8,10 @@ load_dotenv()
 
 
 def upload_to_blogger(title, markdown_content, is_draft=True):
+    if os.getenv("BLOG_ENABLE_BLOGGER", "false").strip().lower() != "true":
+        print("[Blogger] 구글 블로그 자동 발행이 비활성화되어 있습니다. 업로드를 건너뜁니다.")
+        return False
+
     token_file = os.path.join(os.path.dirname(__file__), "blogger_token.json")
     blog_id_env = os.getenv("BLOGGER_BLOG_ID", "").strip()
 

@@ -5,6 +5,7 @@
 # OAuth 토큰 및 클라이언트 시크릿 (절대 커밋 금지!)
 shorts_bot/youtube_token.json
 shorts_bot/client_secrets.json
+blog_bot/blogger_token.json
 
 # 생성된 영상/오디오 임시파일
 *.mp4
