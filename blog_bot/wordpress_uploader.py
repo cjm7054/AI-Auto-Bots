@@ -71,9 +71,17 @@ def upload_to_wordpress(title, markdown_content, status="draft", categories=None
                 timeout=30,
             )
             if response.status_code in (200, 201) and response.text.strip():
-                body = response.json()
-                print(f"[WordPress] 업로드 성공! status={body.get('status')} URL={body.get('link')}", flush=True)
-                return body
+                try:
+                    body = response.json()
+                    print(f"[WordPress] 업로드 성공! status={body.get('status')} URL={body.get('link')}", flush=True)
+                    return body
+                except Exception as je:
+                    snippet = response.text[:220].replace("\n", " ").replace("\r", " ")
+                    print(
+                        f"::error title=WP_NON_JSON::status={response.status_code} "
+                        f"len={len(response.text)} ctype={response.headers.get('Content-Type')} body={snippet!r}",
+                        flush=True,
+                    )
             else:
                 snippet = response.text[:160].replace("\n", " ").replace("\r", " ")
                 print(
