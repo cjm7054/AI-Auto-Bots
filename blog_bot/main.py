@@ -293,11 +293,16 @@ def main():
         sources_wp = collect_google_news_sources(topic_wp, max_items=5)
         md_wp = generate_blog_post(topic_wp, BLOG_PERSONA, sources_wp)
         t_wp, c_wp = extract_title_and_content(md_wp)
-        save_markdown_draft(t_wp, md_wp)
+        draft_path = save_markdown_draft(t_wp, md_wp)
 
         wp_res = upload_to_wordpress(t_wp, md_wp, status=BLOG_PUBLISH_STATUS)
         if wp_res:
             logger.info(f'✅ [WordPress 발행 완료] {t_wp}')
+        elif os.getenv("GITHUB_ACTIONS", "").lower() == "true":
+            logger.warning(
+                f'📦 [해외 IP 차단 감지 -> 초안 큐 저장 완료] 카페24 해외 IP 보안 필터로 인해 '
+                f'생성된 글({draft_path})을 저장소에 커밋하며, 로컬 동기화 스케줄러가 워드프레스에 자동 발행합니다.'
+            )
         else:
             logger.error(f'❌ [WordPress 발행 실패] {t_wp}')
             raise RuntimeError("WordPress 업로드에 실패했습니다. 위 [WordPress] 로그를 확인하세요.")

@@ -75,22 +75,21 @@ def upload_to_wordpress(title, markdown_content, status="draft", categories=None
                     body = response.json()
                     print(f"[WordPress] 업로드 성공! status={body.get('status')} URL={body.get('link')}", flush=True)
                     return body
-                except Exception as je:
-                    snippet = response.text[:220].replace("\n", " ").replace("\r", " ")
+                except Exception:
+                    ctype = response.headers.get("Content-Type", "")
                     print(
-                        f"::error title=WP_NON_JSON::status={response.status_code} "
-                        f"len={len(response.text)} ctype={response.headers.get('Content-Type')} body={snippet!r}",
+                        f"[WordPress] JSON 파싱 불가 응답 ({api_url}): status={response.status_code}, "
+                        f"ctype={ctype}, len={len(response.text)} (카페24 해외 IP 보호 페이지 가능성)",
                         flush=True,
                     )
             else:
-                snippet = response.text[:160].replace("\n", " ").replace("\r", " ")
                 print(
-                    f"::error title=WP_DIAG::url={api_url} status={response.status_code} "
-                    f"len={len(response.text)} server={response.headers.get('Server')} body={snippet!r}",
+                    f"[WordPress] 엔드포인트 응답 비정상 ({api_url}): status={response.status_code}, "
+                    f"len={len(response.text)}",
                     flush=True,
                 )
         except Exception as e:
-            print(f"::error title=WP_EXC::url={api_url} err={e}", flush=True)
+            print(f"[WordPress] 업로드 중 에러 발생 ({api_url}): {e}", flush=True)
 
     return False
 

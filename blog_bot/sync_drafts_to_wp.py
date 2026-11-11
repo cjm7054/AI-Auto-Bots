@@ -9,11 +9,20 @@ from wordpress_uploader import upload_to_wordpress, get_recent_wordpress_titles
 BASE_DIR = Path(__file__).resolve().parent
 REPO_DIR = BASE_DIR.parent
 DRAFT_DIR = BASE_DIR / "data" / "drafts"
+LOG_FILE = BASE_DIR / "data" / "sync_wp.log"
+LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 load_dotenv(REPO_DIR / ".env")
 load_dotenv(BASE_DIR / ".env")
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
 logger = logging.getLogger("sync_drafts_to_wp")
 
 
@@ -33,12 +42,16 @@ def extract_title(md_text: str, fallback_name: str) -> str:
 
 def pull_latest_from_git():
     try:
+        kwargs = {}
+        if os.name == "nt":
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
         subprocess.run(
             ["git", "-C", str(REPO_DIR), "pull", "--rebase", "--autostash", "origin", "main"],
             check=False,
             capture_output=True,
             text=True,
             timeout=30,
+            **kwargs,
         )
     except Exception as e:
         logger.warning(f"Git pull 중 경고 (무시 가능): {e}")

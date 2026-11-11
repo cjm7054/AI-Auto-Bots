@@ -4,13 +4,6 @@ on:
   schedule:
     - cron: '0 9 * * *'  # 매일 KST 18:00 (UTC 09:00)
     - cron: '0 0 * * *'  # 매일 KST 09:00 (UTC 00:00)
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/blog_bot_auto.yml'
-      - 'blog_bot/wordpress_uploader.py'
-      - 'blog_bot/main.py'
   workflow_dispatch:
 
 concurrency:
